@@ -13,7 +13,7 @@ public class SurfaceMaterial : MonoBehaviour
     [Header("Surface Type")]
     public MaterialType surfaceType = MaterialType.Paper;
 
-    [Header("Generated Properties (Read Only)")]
+    [Header("Generated Properties")]
     public float friction = 0.98f;   // how fast particles slow down
     public float stickiness = 0.95f;   // how quickly they stop completely
     public float absorption = 0.8f;    // how much velocity is killed on impact
@@ -34,13 +34,13 @@ public class SurfaceMaterial : MonoBehaviour
         switch (surfaceType)
         {
             case MaterialType.Paper:
-                friction = 0.55f;   // high friction — slows fast
+                friction = 0.55f;   // high friction ï¿½ slows fast
                 stickiness = 0.92f;   // sticks quickly
                 absorption = 0.95f;   // absorbs most impact
                 break;
 
             case MaterialType.Metal:
-                friction = 0.97f;   // low friction — slides
+                friction = 0.97f;   // low friction ï¿½ slides
                 stickiness = 0.20f;   // barely sticks
                 absorption = 0.30f;   // bouncy
                 break;

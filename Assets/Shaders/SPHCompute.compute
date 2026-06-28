@@ -62,6 +62,7 @@ float _Damping;
 float _ParticleRadius;
 float _PressureStrength;
 float _Viscosity;
+float _Cohesion;
 float3 _BoundsMin;
 float3 _BoundsMax;
 
@@ -186,6 +187,15 @@ void CSForcesAndIntegrate(uint3 id : SV_DispatchThreadID)
                         vel_i -= force * _DeltaTime;
                         float3 relativeVelocity = _Particles[j].velAndPressure.xyz - vel_i;
                         vel_i += relativeVelocity * _Viscosity;
+
+                        // Cohesion
+                        float cohesionDistance = _ParticleRadius * 2.5f;
+                        if (dist < cohesionDistance)
+                        {
+                            float strength = (cohesionDistance - dist) * _Cohesion;
+                            vel_i += normal * strength;
+                        }
+
                         pos_i -= normal * overlap * 0.08f;
                     }
                 }

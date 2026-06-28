@@ -19,8 +19,9 @@ public class SPHSimulation : MonoBehaviour
     [Header("SPH Parameters")]
     public float smoothingRadius = 0.13f;  // 1.3 * spacing (~50 neighbors)
     public float restDensity = 1000f;
-    public float stiffness = 500f;  // Higher = less compressible, prevents hovering
+    public float stiffness = 50f;  // Lowered to match old version
     public float viscosity = 0.01f;  // Light viscosity - prevents clumping while maintaining flow
+    public float cohesion = 0.0003f; // Lowered to match old version
     public float gravity = -9.8f;
     public float damping = 0.995f;
 
@@ -150,6 +151,7 @@ public class SPHSimulation : MonoBehaviour
         computeShader.SetFloat("_Damping", damping);
         computeShader.SetFloat("_ParticleRadius", particleRadius);
         computeShader.SetFloat("_Viscosity", viscosity);
+        computeShader.SetFloat("_Cohesion", cohesion);
         computeShader.SetFloat("_PressureStrength", 50f);
         computeShader.SetVector("_BoundsMin", boundsMin);
         computeShader.SetVector("_BoundsMax", boundsMax);
