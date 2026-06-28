@@ -1,0 +1,310 @@
+#pragma kernel CSClearGrid
+#pragma kernel CSHash
+#pragma kernel CSBitonicSort
+#pragma kernel CSCellBounds
+#pragma kernel CSForcesAndIntegrate
+#pragma kernel CSCollideObstacles
+
+#define TABLE_SIZE 1048576
+#define TABLE_MASK 1048575
+
+struct Particle
+{
+    float4 posAndDensity; // xyz = position, w = optional/debug
+    float4 velAndPressure; // xyz = velocity, w = optional/debug
+};
+
+struct ObstacleData
+{
+    float4 posAndType; // xyz = position, w = 0 box, 1 sphere
+    float4 sizeAndParam; // box: xyz = half extents, sphere: x = radius
+    float4 physicsParams; // x = friction, y = stickiness, z = absorption, w = unused
+};
+
+RWStructuredBuffer<Particle> _Particles;
+RWStructuredBuffer<uint> _SortedIndices;
+RWStructuredBuffer<uint> _CellHash;
+RWStructuredBuffer<int> _CellStart;
+RWStructuredBuffer<int> _CellEnd;
+StructuredBuffer<ObstacleData> _Obstacles;
+
+// Drawing board
+RWTexture2D<float4> _BoardTexture;
+float3 _BoardCenter;
+float  _BoardTopY;
+float3 _BoardHalfSize;
+int    _HasBoard;
+int    _BoardTexRes;
+float _BoardFriction;
+float _BoardStickiness;
+float _BoardAbsorption;
+
+// Bucket obstacle
+float _BucketSweep;
+float4x4 _BucketWorldToLocal;
+float4x4 _PrevBucketWorldToLocal;
+float4x4 _BucketLocalToWorld;
+float3 _BucketLinearVelocity;
+float3 _BucketAngularVelocity;
+float _BucketBottomY;
+float _BucketTopY;
+float _BucketBottomRadius;
+float _BucketTopRadius;
+
+int _NumParticles;
+int _SortSize;
+int _NumObstacles;
+
+float _CellSize;
+float _DeltaTime;
+float _Gravity;
+float _Damping;
+float _ParticleRadius;
+float _PressureStrength;
+float _Viscosity;
+float3 _BoundsMin;
+float3 _BoundsMax;
+
+int _BitonicK;
+int _BitonicJ;
+
+uint HashCell3(int3 c)
+{
+    uint h = (uint) ((c.x * 73856093) ^ (c.y * 19349663) ^ (c.z * 83492791));
+    return h & TABLE_MASK;
+}
+
+uint HashCellPos(float3 pos)
+{
+    return HashCell3(int3(floor(pos / _CellSize)));
+}
+
+[numthreads(256, 1, 1)]
+void CSClearGrid(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) TABLE_SIZE) return;
+    _CellStart[id.x] = -1;
+    _CellEnd[id.x] = -1;
+}
+
+[numthreads(256, 1, 1)]
+void CSHash(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _NumParticles)
+    {
+        if (id.x < (uint) _SortSize)
+        {
+            _SortedIndices[id.x] = id.x;
+            _CellHash[id.x] = 0xFFFFFFFF;
+        }
+        return;
+    }
+
+    uint hash = HashCellPos(_Particles[id.x].posAndDensity.xyz);
+    _CellHash[id.x] = hash;
+    _SortedIndices[id.x] = id.x;
+}
+
+[numthreads(256, 1, 1)]
+void CSBitonicSort(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= (uint) (_SortSize / 2)) return;
+
+    uint j = (uint) _BitonicJ;
+    uint k = (uint) _BitonicK;
+    uint ixj = idx ^ j;
+    if (ixj <= idx) return;
+
+    uint keyA = _CellHash[_SortedIndices[idx]];
+    uint keyB = _CellHash[_SortedIndices[ixj]];
+
+    bool ascending = (idx & k) == 0;
+    bool swap = ascending ? (keyA > keyB) : (keyA < keyB);
+
+    if (swap)
+    {
+        uint tmp = _SortedIndices[idx];
+        _SortedIndices[idx] = _SortedIndices[ixj];
+        _SortedIndices[ixj] = tmp;
+    }
+}
+
+[numthreads(256, 1, 1)]
+void CSCellBounds(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _NumParticles) return;
+
+    uint index = _SortedIndices[id.x];
+    uint hash = _CellHash[index];
+
+    if (id.x == 0 || hash != _CellHash[_SortedIndices[id.x - 1]])
+        _CellStart[hash] = id.x;
+
+    if (id.x == (uint) _NumParticles - 1 || hash != _CellHash[_SortedIndices[id.x + 1]])
+        _CellEnd[hash] = id.x + 1;
+}
+
+[numthreads(256, 1, 1)]
+void CSForcesAndIntegrate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _NumParticles) return;
+
+    float3 pos_i = _Particles[id.x].posAndDensity.xyz;
+    float3 vel_i = _Particles[id.x].velAndPressure.xyz;
+
+    vel_i.y += _Gravity * _DeltaTime;
+
+    float3 cellPos = floor(pos_i / _CellSize);
+    int3 cell = int3(cellPos);
+
+    for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                uint nHash = HashCell3(cell + int3(dx, dy, dz));
+                int start = _CellStart[nHash];
+                if (start == -1) continue;
+
+                int end = _CellEnd[nHash];
+
+                for (int k = start; k < end; k++)
+                {
+                    uint j = _SortedIndices[k];
+                    if (j == id.x) continue;
+
+                    float3 pos_j = _Particles[j].posAndDensity.xyz;
+                    float3 dir = pos_j - pos_i;
+                    float dist = length(dir);
+
+                    if (dist < _ParticleRadius * 2.0f && dist > 0.0001f)
+                    {
+                        float3 normal = dir / dist;
+                        float overlap = _ParticleRadius * 2.0f - dist;
+                        float3 force = normal * overlap * _PressureStrength;
+                        force.y *= 0.2f;
+                        vel_i -= force * _DeltaTime;
+                        float3 relativeVelocity = _Particles[j].velAndPressure.xyz - vel_i;
+                        vel_i += relativeVelocity * _Viscosity;
+                        pos_i -= normal * overlap * 0.08f;
+                    }
+                }
+            }
+
+    pos_i += vel_i * _DeltaTime;
+    vel_i *= _Damping;
+
+    // Boundary check
+    if (pos_i.y < _BoundsMin.y) { pos_i.y = _BoundsMin.y; vel_i.y *= -0.5f; }
+    if (pos_i.y > _BoundsMax.y) { pos_i.y = _BoundsMax.y; vel_i.y *= -0.5f; }
+    if (pos_i.x < _BoundsMin.x) { pos_i.x = _BoundsMin.x; vel_i.x *= -0.5f; }
+    if (pos_i.x > _BoundsMax.x) { pos_i.x = _BoundsMax.x; vel_i.x *= -0.5f; }
+    if (pos_i.z < _BoundsMin.z) { pos_i.z = _BoundsMin.z; vel_i.z *= -0.5f; }
+    if (pos_i.z > _BoundsMax.z) { pos_i.z = _BoundsMax.z; vel_i.z *= -0.5f; }
+
+    _Particles[id.x].posAndDensity.xyz = pos_i;
+    _Particles[id.x].velAndPressure.xyz = vel_i;
+}
+
+// Drawing Logic
+void CollideBoardAndPaint(inout float3 pos, inout float3 vel, float radius)
+{
+    if (_HasBoard == 0) return;
+    float minX = _BoardCenter.x - _BoardHalfSize.x;
+    float maxX = _BoardCenter.x + _BoardHalfSize.x;
+    float minZ = _BoardCenter.z - _BoardHalfSize.z;
+    float maxZ = _BoardCenter.z + _BoardHalfSize.z;
+
+    if (pos.x < minX || pos.x > maxX || pos.z < minZ || pos.z > maxZ) return;
+
+    float dist = pos.y - _BoardTopY;
+
+    if (dist < radius && dist > -0.5)
+    {
+        if (length(vel) > 0.05f)
+        {
+            float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
+            float v = (pos.z - minZ) / (_BoardHalfSize.z * 2.0);
+            int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
+            int splatRadius = 3;
+            for (int dx = -splatRadius; dx <= splatRadius; dx++)
+            {
+                for (int dz = -splatRadius; dz <= splatRadius; dz++)
+                {
+                    int2 p = center + int2(dx, dz);
+                    if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
+                    {
+                        float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
+                        if (falloff > 0.0)
+                        {
+                            _BoardTexture[p] = lerp(_BoardTexture[p], float4(0.2, 0.5, 1.0, 1.0), saturate(falloff * 0.8));
+                        }
+                    }
+                }
+            }
+        }
+        pos.y = _BoardTopY + radius;
+        if (vel.y < 0.0f) vel.y = -vel.y * (1.0f - _BoardAbsorption);
+        vel.x *= _BoardFriction; vel.z *= _BoardFriction;
+        if (length(vel) < (1.0f - _BoardStickiness) * 2.0f) vel = float3(0,0,0);
+    }
+}
+
+// Bucket Logic
+void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout float3 outPos, inout float3 outVel)
+{
+    float3 currLocal = mul(_BucketWorldToLocal, float4(worldPos, 1)).xyz;
+    float3 bucketCenter = mul(_BucketLocalToWorld, float4(0, 0, 0, 1)).xyz;
+    float3 relWorld = worldPos - bucketCenter;
+    float3 bucketVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, relWorld);
+    float3 relVel = worldVel - bucketVel;
+
+    float h = max(_BucketTopY - _BucketBottomY, 1e-4f);
+    float t = saturate((currLocal.y - _BucketBottomY) / h);
+    float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, t);
+    float radial = length(currLocal.xz);
+    float radius = bucketRadius - particleRadius;
+    float sweep = length(bucketVel) * _DeltaTime;
+    float safeRadius = radius - sweep;
+
+    if (currLocal.y >= _BucketBottomY - particleRadius - sweep && currLocal.y <= _BucketTopY + particleRadius + sweep)
+    {
+        if (radial > safeRadius)
+        {
+            float2 dir = currLocal.xz / max(radial, 1e-6f);
+            currLocal.xz = dir * safeRadius;
+            float slope = (_BucketTopRadius - _BucketBottomRadius) / h;
+            float3 nLocal = normalize(float3(-dir.x, slope, -dir.y));
+            float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, nLocal));
+            float vn = dot(relVel, nWorld);
+            if (vn < 0) relVel -= vn * nWorld;
+            relVel *= 0.96f;
+        }
+        float bottom = _BucketBottomY + particleRadius + sweep;
+        if (currLocal.y < bottom)
+        {
+            currLocal.y = bottom;
+            float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
+            float vn = dot(relVel, nWorld);
+            if (vn < 0) relVel -= vn * nWorld;
+            relVel *= 0.96f;
+        }
+    }
+    outPos = mul(_BucketLocalToWorld, float4(currLocal, 1)).xyz;
+    outVel = relVel + bucketVel;
+}
+
+[numthreads(256, 1, 1)]
+void CSCollideObstacles(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _NumParticles) return;
+    float3 pos = _Particles[id.x].posAndDensity.xyz;
+    float3 vel = _Particles[id.x].velAndPressure.xyz;
+
+    // Apply both
+    CollideBoardAndPaint(pos, vel, _ParticleRadius);
+    CollideBucket(pos, vel, _ParticleRadius, pos, vel);
+
+    _Particles[id.x].posAndDensity.xyz = pos;
+    _Particles[id.x].velAndPressure.xyz = vel;
+}
