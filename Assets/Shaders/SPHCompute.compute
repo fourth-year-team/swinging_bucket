@@ -277,7 +277,7 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
     float sweep = length(bucketVel) * _DeltaTime;
     float safeRadius = radius - sweep;
 
-    if (currLocal.y >= _BucketBottomY - particleRadius - sweep && currLocal.y <= _BucketTopY + particleRadius + sweep)
+    if (currLocal.y >= _BucketBottomY - particleRadius - 1.0f && currLocal.y <= _BucketTopY + particleRadius + sweep)
     {
         if (radial > safeRadius)
         {
@@ -290,7 +290,7 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
             if (vn < 0) relVel -= vn * nWorld;
             relVel *= 0.96f;
         }
-        float bottom = _BucketBottomY + particleRadius + sweep;
+        float bottom = _BucketBottomY + particleRadius;
         if (currLocal.y < bottom)
         {
             currLocal.y = bottom;
