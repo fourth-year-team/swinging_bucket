@@ -232,6 +232,7 @@ MonoBehaviour:
   topY: 5.25
   bottomRadius: 1.57
   topRadius: 1.9
+  holeRadius: 0.1
   linearVelocity: {x: 0, y: 0, z: 0}
   angularVelocity: {x: 0, y: 0, z: 0}
   prevWorldToLocalMatrix:
@@ -2614,6 +2615,7 @@ MonoBehaviour:
   restDensity: 1000
   stiffness: 500
   viscosity: 0.01
+  cohesion: 0.0003
   gravity: -9.8
   damping: 0.995
   boundsMin: {x: -60, y: 1, z: -60}
