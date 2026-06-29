@@ -50,7 +50,8 @@ float _BucketBottomY;
 float _BucketTopY;
 float _BucketBottomRadius;
 float _BucketTopRadius;
-float _BucketHoleRadius;
+float _HoleRadius;
+int _HoleEnabled;
 
 int _NumParticles;
 int _SortSize;
@@ -262,8 +263,15 @@ void CollideBoardAndPaint(inout float3 pos, inout float3 vel, float radius)
 }
 
 // Bucket Logic
-void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout float3 outPos, inout float3 outVel)
+void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout float escapedThroughHole, inout float3 outPos, inout float3 outVel)
 {
+    if (escapedThroughHole > 0.5f)
+    {
+        outPos = worldPos;
+        outVel = worldVel;
+        return;
+    }
+
     float3 currLocal = mul(_BucketWorldToLocal, float4(worldPos, 1)).xyz;
     float3 bucketCenter = mul(_BucketLocalToWorld, float4(0, 0, 0, 1)).xyz;
     float3 relWorld = worldPos - bucketCenter;
@@ -277,6 +285,20 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
     float radius = bucketRadius - particleRadius;
     float sweep = length(bucketVel) * _DeltaTime;
     float safeRadius = radius - sweep;
+    float bottom = _BucketBottomY + particleRadius;
+    float holePassRadius = max(_HoleRadius - particleRadius, 0.0f);
+    bool holeActive = (_HoleEnabled == 1) && (holePassRadius > 0.0f);
+    bool insideHole = holeActive && (radial < holePassRadius);
+
+    // Once a particle center has cleared the bottom plane through the hole,
+    // mark it as escaped so later bucket motion cannot pull it back inside.
+    if (holeActive && insideHole && currLocal.y < _BucketBottomY)
+    {
+        escapedThroughHole = 1.0f;
+        outPos = worldPos;
+        outVel = worldVel;
+        return;
+    }
 
     if (currLocal.y >= _BucketBottomY - particleRadius - 1.0f && currLocal.y <= _BucketTopY + particleRadius + sweep)
     {
@@ -291,15 +313,20 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
             if (vn < 0) relVel -= vn * nWorld;
             relVel *= 0.96f;
         }
-        float bottom = _BucketBottomY + particleRadius;
-        float r = length(currLocal.xz);
-        if (currLocal.y < bottom && r > (_BucketHoleRadius + particleRadius))
+        if (currLocal.y < bottom)
         {
-            currLocal.y = bottom;
-            float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
-            float vn = dot(relVel, nWorld);
-            if (vn < 0) relVel -= vn * nWorld;
-            relVel *= 0.96f;
+            if (!insideHole)
+            {
+                // Solid floor region: push particle back up and reflect velocity.
+                // Same hand-written normal-impulse math as before - no physics engine.
+                currLocal.y = bottom;
+                float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
+                float vn = dot(relVel, nWorld);
+                if (vn < 0) relVel -= vn * nWorld;
+                relVel *= 0.96f;
+            }
+            // If insideHole == true: do nothing at all.
+            // The particle exits through the hole under SPH pressure and gravity alone.
         }
     }
     outPos = mul(_BucketLocalToWorld, float4(currLocal, 1)).xyz;
@@ -312,11 +339,13 @@ void CSCollideObstacles(uint3 id : SV_DispatchThreadID)
     if (id.x >= (uint) _NumParticles) return;
     float3 pos = _Particles[id.x].posAndDensity.xyz;
     float3 vel = _Particles[id.x].velAndPressure.xyz;
+    float escapedThroughHole = _Particles[id.x].velAndPressure.w;
 
     // Apply both
     CollideBoardAndPaint(pos, vel, _ParticleRadius);
-    CollideBucket(pos, vel, _ParticleRadius, pos, vel);
+    CollideBucket(pos, vel, _ParticleRadius, escapedThroughHole, pos, vel);
 
     _Particles[id.x].posAndDensity.xyz = pos;
     _Particles[id.x].velAndPressure.xyz = vel;
+    _Particles[id.x].velAndPressure.w = escapedThroughHole;
 }
