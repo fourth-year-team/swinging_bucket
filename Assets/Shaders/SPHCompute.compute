@@ -50,6 +50,7 @@ float _BucketBottomY;
 float _BucketTopY;
 float _BucketBottomRadius;
 float _BucketTopRadius;
+float _BucketHoleRadius;
 
 int _NumParticles;
 int _SortSize;
@@ -291,7 +292,8 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
             relVel *= 0.96f;
         }
         float bottom = _BucketBottomY + particleRadius;
-        if (currLocal.y < bottom)
+        float r = length(currLocal.xz);
+        if (currLocal.y < bottom && r > (_BucketHoleRadius + particleRadius))
         {
             currLocal.y = bottom;
             float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));

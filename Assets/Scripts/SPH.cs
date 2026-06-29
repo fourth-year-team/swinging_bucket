@@ -203,6 +203,7 @@ public class SPHSimulation : MonoBehaviour
         computeShader.SetFloat("_BucketTopRadius", bucket.topRadius * bucket.transform.lossyScale.x);
         computeShader.SetFloat("_BucketBottomY", bucket.bottomY * bucket.transform.lossyScale.y);
         computeShader.SetFloat("_BucketTopY", bucket.topY * bucket.transform.lossyScale.y);
+        computeShader.SetFloat("_BucketHoleRadius", bucket.holeRadius * bucket.transform.lossyScale.x);
     }
 
     void Bind(int kernel)
