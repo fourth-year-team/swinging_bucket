@@ -7,7 +7,6 @@ public class BucketObstacle : MonoBehaviour
     public float topY = 5.25f;
     public float bottomRadius = 1.57f;
     public float topRadius = 1.9f;
-    public float holeRadius = 0.1f;
 
     [Header("Hole Settings")]
     public bool holeEnabled = true;
