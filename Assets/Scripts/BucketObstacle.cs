@@ -8,6 +8,10 @@ public class BucketObstacle : MonoBehaviour
     public float bottomRadius = 1.57f;
     public float topRadius = 1.9f;
 
+    [Header("Hole Settings")]
+    public bool holeEnabled = true;
+    public float holeRadius = 0.3f;
+
     [HideInInspector] public Vector3 linearVelocity;
     [HideInInspector] public Vector3 angularVelocity;
     [HideInInspector] public Matrix4x4 prevWorldToLocalMatrix;
@@ -46,5 +50,23 @@ public class BucketObstacle : MonoBehaviour
 
         prevWorldToLocalMatrix = prevMatrix;
         prevMatrix = transform.worldToLocalMatrix;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (!holeEnabled) return;
+
+        Gizmos.color = Color.red;
+        int segs = 32;
+        float step = Mathf.PI * 2f / segs;
+
+        for (int i = 0; i < segs; i++)
+        {
+            float a0 = i * step;
+            float a1 = (i + 1) * step;
+            Vector3 p0 = transform.TransformPoint(new Vector3(Mathf.Cos(a0) * holeRadius, bottomY, Mathf.Sin(a0) * holeRadius));
+            Vector3 p1 = transform.TransformPoint(new Vector3(Mathf.Cos(a1) * holeRadius, bottomY, Mathf.Sin(a1) * holeRadius));
+            Gizmos.DrawLine(p0, p1);
+        }
     }
 }
