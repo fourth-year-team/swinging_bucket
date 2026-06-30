@@ -30,7 +30,7 @@ public class SPHSimulation : MonoBehaviour
     public Vector3 boundsMax = new Vector3(10f, 20f, 10f);
 
     [Header("Bucket Obstacle")]
-    public BucketObstacle bucket;
+    public BucketBody bucket;
     Matrix4x4 prevWorldToLocal;
 
     [Header("Drawing Board")]

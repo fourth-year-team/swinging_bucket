@@ -27,7 +27,7 @@ public class Rope : MonoBehaviour
     public float damping = 0.02f;
 
     [Header("Bucket")]
-    private BucketBody bucketBody;
+    public BucketBody bucketBody;
     public Transform bucketVisual;
     public float bucketMass = 10f;
     public float paintMass = 40f;
@@ -100,6 +100,17 @@ public class Rope : MonoBehaviour
             previousPos[i] = pos;
         }
 
+        if (bucketBody == null)
+            bucketBody = bucketEnd.GetComponent<BucketBody>();
+        if (bucketBody == null)
+            bucketBody = bucketEnd.gameObject.AddComponent<BucketBody>();
+
+        bucketBody.position = currentPos[segmentCount - 1];
+        bucketBody.mass = totalMass;
+        bucketBody.theta = theta;
+        bucketBody.phi = phi;
+        bucketBody.paintMass = 10f;
+
         if (angularMotion)
         {
             float omega = Mathf.Sqrt(Mathf.Abs(gravity) / (ropeLength * Mathf.Cos(theta)));
@@ -115,13 +126,11 @@ public class Rope : MonoBehaviour
 
             float dt = Time.fixedDeltaTime;
 
-            bucketBody = new BucketBody(currentPos[segmentCount - 1], totalMass, initialVelocity, dt, theta, phi);
-
-            previousPos[segmentCount - 1] = currentPos[segmentCount - 1] - initialVelocity * dt;
+            bucketBody.previousPosition = currentPos[segmentCount - 1] - initialVelocity * dt;
         }
         else
         {
-            bucketBody = new BucketBody(currentPos[segmentCount - 1], bucketMass);
+            bucketBody.previousPosition = currentPos[segmentCount - 1];
         }
 
         isLocked[0] = true; // top point fixed to ceiling hook

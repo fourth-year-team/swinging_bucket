@@ -232,6 +232,7 @@ MonoBehaviour:
   topY: 5.25
   bottomRadius: 1.57
   topRadius: 1.9
+  holeEnabled: 1
   holeRadius: 0.1
   linearVelocity: {x: 0, y: 0, z: 0}
   angularVelocity: {x: 0, y: 0, z: 0}
@@ -1719,43 +1720,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Rope
   startTheta: 30
   startPhi: 0
-  inital_offset: {x: 0, y: 0, z: 0}
+  inital_offset: {x: 10, y: 0, z: 0}
   angularMotion: 0
   anchor: {fileID: 1511524331}
   bucketEnd: {fileID: 1405891728}
-  segmentCount: 20
+  segmentCount: 80
   ropeLength: 20
-  ropeMass: 10
-  constraintIterations: 50
+  ropeMass: 40
+  constraintIterations: 160
   gravity: -9.81
-  damping: 0
+  damping: 0.002
   bucketVisual: {fileID: 202964310}
-  bucketMass: 40
-  paintMass: 0
+  bucketMass: 10
+  paintMass: 40
   totalMass: 0
-  ropeRadius: 0.15
+  ropeRadius: 0.03
   radialSegments: 6
-  currentPos:
-  - {x: 0, y: 39.5, z: 0}
-  - {x: 0.9116058, y: 38.973682, z: 0}
-  - {x: 1.8232116, y: 38.44737, z: 0}
-  - {x: 2.7348173, y: 37.92105, z: 0}
-  - {x: 3.646423, y: 37.394737, z: 0}
-  - {x: 4.5580287, y: 36.86842, z: 0}
-  - {x: 5.4696345, y: 36.342106, z: 0}
-  - {x: 6.3812404, y: 35.81579, z: 0}
-  - {x: 7.292846, y: 35.289474, z: 0}
-  - {x: 8.204452, y: 34.763157, z: 0}
-  - {x: 9.116057, y: 34.236843, z: 0}
-  - {x: 10.027663, y: 33.710526, z: 0}
-  - {x: 10.939269, y: 33.18421, z: 0}
-  - {x: 11.850875, y: 32.657894, z: 0}
-  - {x: 12.762481, y: 32.131577, z: 0}
-  - {x: 13.674087, y: 31.605263, z: 0}
-  - {x: 14.585692, y: 31.078947, z: 0}
-  - {x: 15.497298, y: 30.552631, z: 0}
-  - {x: 16.408903, y: 30.026316, z: 0}
-  - {x: 17.320509, y: 29.5, z: 0}
+  currentPos: []
 --- !u!23 &1069786375
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2608,18 +2589,18 @@ MonoBehaviour:
   computeShader: {fileID: 7200000, guid: 081b09f0f825e4a40acffec65b48d146, type: 3}
   particleMaterial: {fileID: 2100000, guid: 443d2fd21b058924089005c3ad6ef104, type: 2}
   particleRadius: 0.05
-  spawnX: 20
-  spawnY: 20
-  spawnZ: 20
+  spawnX: 16
+  spawnY: 16
+  spawnZ: 16
   smoothingRadius: 0.13
   restDensity: 1000
-  stiffness: 500
+  stiffness: 50
   viscosity: 0.01
   cohesion: 0.0003
   gravity: -9.8
   damping: 0.995
-  boundsMin: {x: -60, y: 1, z: -60}
-  boundsMax: {x: 60, y: 60, z: 60}
+  boundsMin: {x: -10, y: -0, z: -10}
+  boundsMax: {x: 10, y: 20, z: 10}
   bucket: {fileID: 202964311}
   drawingBoard: {fileID: 1273481096}
 --- !u!4 &1724698700
