@@ -12,6 +12,10 @@ public class BucketBody : MonoBehaviour
     public bool holeEnabled = true;
     public float holeRadius = 0.3f;
 
+    [Header("Paint Settings")]
+    public float emptyMass = 10f;
+    public float paintLeakRate = 1f;
+
     [HideInInspector] public Vector3 linearVelocity;
     [HideInInspector] public Vector3 angularVelocity;
     [HideInInspector] public Matrix4x4 prevWorldToLocalMatrix;
@@ -68,7 +72,23 @@ public class BucketBody : MonoBehaviour
 
         previousPosition = current;
 
-        paintMass -= 10f * dt * dt;
+        if (paintMass > 0f && holeEnabled)
+        {
+            // Torricelli-like flow: rate ~ sqrt(head) * holeArea * leakRate
+            float head = Mathf.Max(paintMass / (emptyMass + paintMass), 0.001f);
+            float holeArea = holeRadius * holeRadius;
+            float baseFlow = Mathf.Sqrt(head) * holeArea * paintLeakRate;
+
+            // Motion increases spillage
+            float motion = angularVelocity.magnitude;
+            float motionFactor = 1f + motion * 0.5f;
+
+            paintMass -= baseFlow * motionFactor * dt;
+            if (paintMass < 0f) paintMass = 0f;
+
+            // Update total mass for rope dynamics
+            mass = emptyMass + paintMass;
+        }
     }
 
     void OnDrawGizmosSelected()

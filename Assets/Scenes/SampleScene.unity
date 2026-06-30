@@ -1724,16 +1724,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 15226ddaea3a4b14c9ff177be0a0e603, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Rope
-  startTheta: 30
-  startPhi: 0
+  startTheta: 45
+  startPhi: 30
   inital_offset: {x: 10, y: 0, z: 0}
   angularMotion: 0
   anchor: {fileID: 1511524331}
   bucketEnd: {fileID: 1405891728}
-  segmentCount: 80
-  ropeLength: 20
-  ropeMass: 40
-  constraintIterations: 160
+  segmentCount: 90
+  ropeLength: 25
+  ropeMass: 50
+  constraintIterations: 180
   gravity: -9.81
   damping: 0.002
   bucketBody: {fileID: 202964311}

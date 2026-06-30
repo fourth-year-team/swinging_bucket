@@ -108,10 +108,11 @@ public class Rope : MonoBehaviour
             bucketBody = bucketEnd.gameObject.AddComponent<BucketBody>();
 
         bucketBody.position = currentPos[segmentCount - 1];
-        bucketBody.mass = totalMass;
+        bucketBody.emptyMass = bucketMass;
+        bucketBody.paintMass = paintMass;
+        bucketBody.mass = bucketMass + paintMass;
         bucketBody.theta = theta;
         bucketBody.phi = phi;
-        bucketBody.paintMass = 10f;
 
         if (angularMotion)
         {
@@ -221,6 +222,10 @@ public class Rope : MonoBehaviour
 
         // integrate bucket
         bucketBody.Integrate(gravityVec, dt, damping);
+
+        // Update rope-end mass as paint leaks from the bucket
+        float segMass = ropeMass / segmentCount;
+        particleMass[segmentCount - 1] = segMass + bucketBody.mass;
     }
 
     void ApplyConstraints()
