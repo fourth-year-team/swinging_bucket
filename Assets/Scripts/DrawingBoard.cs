@@ -51,6 +51,15 @@ public class DrawingBoard : MonoBehaviour
         );
     }
 
+    public void ClearBoard()
+    {
+        if (boardTexture == null) return;
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = boardTexture;
+        GL.Clear(true, true, Color.white);
+        RenderTexture.active = prev;
+    }
+
     void OnDestroy()
     {
         if (boardTexture != null)

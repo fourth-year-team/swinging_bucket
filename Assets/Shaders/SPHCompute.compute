@@ -22,6 +22,7 @@ struct ObstacleData
 };
 
 RWStructuredBuffer<Particle> _Particles;
+RWStructuredBuffer<uint> _EscapedCount;
 RWStructuredBuffer<uint> _SortedIndices;
 RWStructuredBuffer<uint> _CellHash;
 RWStructuredBuffer<int> _CellStart;
@@ -38,6 +39,7 @@ int    _BoardTexRes;
 float _BoardFriction;
 float _BoardStickiness;
 float _BoardAbsorption;
+float4 _PaintColor;
 
 // Bucket obstacle
 float _BucketSweep;
@@ -249,7 +251,7 @@ void CollideBoardAndPaint(inout float3 pos, inout float3 vel, float radius)
                         float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
                         if (falloff > 0.0)
                         {
-                            _BoardTexture[p] = lerp(_BoardTexture[p], float4(0.2, 0.5, 1.0, 1.0), saturate(falloff * 0.8));
+                            _BoardTexture[p] = lerp(_BoardTexture[p], _PaintColor, saturate(falloff * 0.8));
                         }
                     }
                 }

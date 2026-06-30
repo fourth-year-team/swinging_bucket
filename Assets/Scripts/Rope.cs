@@ -100,9 +100,11 @@ public class Rope : MonoBehaviour
             previousPos[i] = pos;
         }
 
-        if (bucketBody == null)
-            bucketBody = bucketEnd.GetComponent<BucketBody>();
-        if (bucketBody == null)
+        if (bucketBody == null && bucketVisual != null)
+            bucketBody = bucketVisual.GetComponent<BucketBody>();
+        if (bucketBody == null && bucketEnd != null)
+            bucketBody = bucketEnd.GetComponentInParent<BucketBody>();
+        if (bucketBody == null && bucketEnd != null)
             bucketBody = bucketEnd.gameObject.AddComponent<BucketBody>();
 
         bucketBody.position = currentPos[segmentCount - 1];
@@ -152,6 +154,8 @@ public class Rope : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (GameManager.Instance == null || GameManager.Instance.State != GameState.Playing) return;
+
         Vector3 hookOffset = bucketVisual.position - bucketEnd.position;
 
         if (currentPos == null || currentPos.Length != segmentCount)

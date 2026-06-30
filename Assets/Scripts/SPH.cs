@@ -49,6 +49,8 @@ public class SPHSimulation : MonoBehaviour
         public Vector4 velAndPressure;
     }
 
+    private Color currentPaintColor = Color.blue;
+
     void Start()
     {
         if (computeShader == null)
@@ -73,6 +75,14 @@ public class SPHSimulation : MonoBehaviour
         CreateBuffers();
         SpawnParticles();
         SetupArgs();
+
+        if (GameManager.Instance != null)
+        {
+            currentPaintColor = GameManager.Instance.selectedColor;
+            GameManager.OnColorChanged += OnPaintColorChanged;
+            GameManager.OnGameStarted += OnGameStarted;
+        }
+        UpdateParticleMaterialColor(currentPaintColor);
     }
 
     void CacheKernels()
@@ -134,6 +144,8 @@ public class SPHSimulation : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (GameManager.Instance == null || GameManager.Instance.State != GameState.Playing) return;
+
         float dt = Mathf.Min(Time.fixedDeltaTime, 0.01f);
         SetParams(dt);
         SetBucketParams();
@@ -184,6 +196,8 @@ public class SPHSimulation : MonoBehaviour
         {
             computeShader.SetInt("_HasBoard", 0);
         }
+
+        computeShader.SetVector("_PaintColor", currentPaintColor);
     }
 
     void SetBucketParams()
@@ -286,8 +300,30 @@ public class SPHSimulation : MonoBehaviour
         Graphics.DrawProceduralIndirect(particleMaterial, bounds, MeshTopology.Triangles, argsBuffer);
     }
 
+    void OnPaintColorChanged(Color color)
+    {
+        currentPaintColor = color;
+        UpdateParticleMaterialColor(color);
+    }
+
+    void OnGameStarted()
+    {
+        if (drawingBoard != null)
+            drawingBoard.ClearBoard();
+    }
+
+    void UpdateParticleMaterialColor(Color color)
+    {
+        if (particleMaterial == null) return;
+        particleMaterial.SetColor("_ColorLow", Color.Lerp(color, Color.white, 0.35f));
+        particleMaterial.SetColor("_ColorHigh", Color.Lerp(color, Color.black, 0.30f));
+    }
+
     void OnDestroy()
     {
+        GameManager.OnColorChanged -= OnPaintColorChanged;
+        GameManager.OnGameStarted -= OnGameStarted;
+
         if (particleBuffer != null) particleBuffer.Release();
         if (sortedIndices != null) sortedIndices.Release();
         if (cellHash != null) cellHash.Release();
