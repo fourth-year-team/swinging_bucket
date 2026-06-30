@@ -24,20 +24,33 @@ public class UIManager : MonoBehaviour
     private Canvas canvas;
     private GameObject panel;
     private Image selectedSwatch;
+    private Font uiFont;
 
     void Awake()
     {
         if (GameManager.Instance == null)
             new GameObject("GameManager", typeof(GameManager));
 
-        if (FindObjectOfType<EventSystem>() == null)
+        if (FindFirstObjectByType<EventSystem>() == null)
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+
+        uiFont = GetFont();
 
         CreateCanvas();
         CreateUI();
 
         if (presetColors.Length > 0)
             SelectColor(presetColors[0]);
+    }
+
+    static Font GetFont()
+    {
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font == null)
+            font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (font == null)
+            font = Resources.GetBuiltinResource<Font>("Lucida Console.ttf");
+        return font;
     }
 
     void CreateCanvas()
@@ -60,7 +73,8 @@ public class UIManager : MonoBehaviour
         RectTransform prt = panel.GetComponent<RectTransform>();
         prt.anchorMin = Vector2.zero;
         prt.anchorMax = Vector2.one;
-        prt.sizeDelta = Vector2.zero;
+        prt.offsetMin = Vector2.zero;
+        prt.offsetMax = Vector2.zero;
 
         Image bg = panel.GetComponent<Image>();
         bg.color = new Color(0.12f, 0.12f, 0.14f, 0.92f);
@@ -68,9 +82,11 @@ public class UIManager : MonoBehaviour
         VerticalLayoutGroup vlg = panel.GetComponent<VerticalLayoutGroup>();
         vlg.childAlignment = TextAnchor.MiddleCenter;
         vlg.childControlWidth = true;
-        vlg.childControlHeight = false;
+        vlg.childControlHeight = true;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
         vlg.spacing = 20;
-        vlg.padding = new RectOffset(60, 60, 40, 40);
+        vlg.padding = new RectOffset(80, 80, 60, 60);
 
         AddTitle(panel.transform);
         AddColorPicker(panel.transform);
@@ -84,14 +100,15 @@ public class UIManager : MonoBehaviour
 
         Text title = titleGO.GetComponent<Text>();
         title.text = "SWINGING BUCKET PAINTER";
-        title.fontSize = 52;
+        title.fontSize = 48;
         title.fontStyle = FontStyle.Bold;
         title.alignment = TextAnchor.MiddleCenter;
         title.color = new Color(0.9f, 0.9f, 0.95f);
-        title.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        title.font = uiFont;
 
-        RectTransform rt = titleGO.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(0, 80);
+        LayoutElement le = titleGO.AddComponent<LayoutElement>();
+        le.preferredHeight = 80;
+        le.flexibleHeight = 0;
     }
 
     void AddColorPicker(Transform parent)
@@ -103,20 +120,24 @@ public class UIManager : MonoBehaviour
         slg.childAlignment = TextAnchor.MiddleCenter;
         slg.childControlWidth = true;
         slg.childControlHeight = false;
-        slg.spacing = 12;
+        slg.spacing = 16;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 1;
 
         // Label
         GameObject labelGO = new GameObject("ColorLabel", typeof(Text));
         labelGO.transform.SetParent(section.transform, false);
         Text label = labelGO.GetComponent<Text>();
         label.text = "Select Paint Color";
-        label.fontSize = 28;
+        label.fontSize = 26;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = new Color(0.8f, 0.8f, 0.85f);
-        label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        label.font = uiFont;
 
-        RectTransform lrt = labelGO.GetComponent<RectTransform>();
-        lrt.sizeDelta = new Vector2(0, 40);
+        LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
+        labelLE.preferredHeight = 40;
+        labelLE.flexibleHeight = 0;
 
         // Swatch grid
         int cols = 6;
@@ -129,14 +150,17 @@ public class UIManager : MonoBehaviour
         glg.childAlignment = TextAnchor.MiddleCenter;
         glg.cellSize = new Vector2(80, 80);
         glg.spacing = new Vector2(12, 12);
-        glg.padding = new RectOffset(20, 20, 10, 10);
+        glg.padding = new RectOffset(10, 10, 10, 10);
 
-        RectConstraint(gridGO, 0, 0, 0, 0);
+        int rows = Mathf.CeilToInt((float)presetColors.Length / cols);
+        float gridHeight = rows * 80 + (rows - 1) * 12 + 20;
+
+        LayoutElement gridLE = gridGO.AddComponent<LayoutElement>();
+        gridLE.preferredHeight = gridHeight;
+        gridLE.flexibleHeight = 0;
 
         for (int i = 0; i < presetColors.Length; i++)
-        {
             CreateSwatch(gridGO.transform, presetColors[i], i);
-        }
     }
 
     void CreateSwatch(Transform parent, Color color, int index)
@@ -146,9 +170,6 @@ public class UIManager : MonoBehaviour
 
         Image swatch = swatchGO.GetComponent<Image>();
         swatch.color = color;
-
-        RectTransform rt = swatchGO.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(80, 80);
 
         Button btn = swatchGO.AddComponent<Button>();
         btn.targetGraphic = swatch;
@@ -191,27 +212,33 @@ public class UIManager : MonoBehaviour
         Image bg = btnGO.GetComponent<Image>();
         bg.color = new Color(0.22f, 0.56f, 0.95f);
 
-        RectTransform rt = btnGO.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(360, 70);
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 70;
+        btnLE.flexibleHeight = 0;
 
         Button btn = btnGO.GetComponent<Button>();
         btn.targetGraphic = bg;
         ColorBlock cb = btn.colors;
         cb.highlightedColor = new Color(0.35f, 0.65f, 1.0f);
         cb.normalColor = new Color(0.22f, 0.56f, 0.95f);
+        cb.selectedColor = new Color(0.22f, 0.56f, 0.95f);
         btn.colors = cb;
 
         GameObject labelGO = new GameObject("Label", typeof(Text));
         labelGO.transform.SetParent(btnGO.transform, false);
         Text label = labelGO.GetComponent<Text>();
         label.text = "START PAINTING";
-        label.fontSize = 30;
+        label.fontSize = 28;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;
-        label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        label.font = uiFont;
 
-        RectConstraint(labelGO, 0, 0, 0, 0);
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
 
         btn.onClick.AddListener(() =>
         {
@@ -220,14 +247,5 @@ public class UIManager : MonoBehaviour
             Destroy(canvas.gameObject);
             Destroy(gameObject);
         });
-    }
-
-    static void RectConstraint(GameObject go, float left, float top, float right, float bottom)
-    {
-        RectTransform rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = new Vector2(left, bottom);
-        rt.offsetMax = new Vector2(-right, -top);
     }
 }

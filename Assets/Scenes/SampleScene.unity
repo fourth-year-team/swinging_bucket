@@ -225,15 +225,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 202964309}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe1f1d411696e7f4e8c28c2a8e40b387, type: 3}
+  m_Script: {fileID: 11500000, guid: 41d3351969f02c94586e4e422eca8848, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BucketObstacle
   bottomY: 0.39
   topY: 5.25
-  bottomRadius: 1.57
+  bottomRadius: 1.6
   topRadius: 1.9
   holeEnabled: 1
-  holeRadius: 0.1
+  holeRadius: 0.3
   linearVelocity: {x: 0, y: 0, z: 0}
   angularVelocity: {x: 0, y: 0, z: 0}
   prevWorldToLocalMatrix:
@@ -253,6 +253,12 @@ MonoBehaviour:
     e31: 0
     e32: 0
     e33: 0
+  position: {x: 0, y: 0, z: 0}
+  previousPosition: {x: 0, y: 0, z: 0}
+  mass: 0
+  theta: 0
+  phi: 0
+  paintMass: 10
 --- !u!1 &205987411
 GameObject:
   m_ObjectHideFlags: 0
@@ -1730,11 +1736,12 @@ MonoBehaviour:
   constraintIterations: 160
   gravity: -9.81
   damping: 0.002
+  bucketBody: {fileID: 202964311}
   bucketVisual: {fileID: 202964310}
   bucketMass: 10
   paintMass: 40
   totalMass: 0
-  ropeRadius: 0.03
+  ropeRadius: 0.05
   radialSegments: 6
   currentPos: []
 --- !u!23 &1069786375
@@ -1884,6 +1891,63 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1157533357}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1239968279
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1239968281}
+  - component: {fileID: 1239968280}
+  m_Layer: 0
+  m_Name: GameManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1239968280
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239968279}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 637535659b239104dacf867e6f279e7f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UIManager
+  presetColors:
+  - {r: 0.91, g: 0.3, b: 0.24, a: 1}
+  - {r: 0.24, g: 0.6, b: 0.91, a: 1}
+  - {r: 0.3, g: 0.69, b: 0.31, a: 1}
+  - {r: 1, g: 0.92, b: 0.23, a: 1}
+  - {r: 1, g: 0.55, b: 0, a: 1}
+  - {r: 0.61, g: 0.15, b: 0.69, a: 1}
+  - {r: 1, g: 0.41, b: 0.71, a: 1}
+  - {r: 1, g: 1, b: 1, a: 1}
+  - {r: 0.25, g: 0.25, b: 0.25, a: 1}
+  - {r: 0.4, g: 0.26, b: 0.13, a: 1}
+  - {r: 0, g: 0, b: 0, a: 1}
+  - {r: 0.5, g: 0.78, b: 0.92, a: 1}
+--- !u!4 &1239968281
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1239968279}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1262301473
 GameObject:
   m_ObjectHideFlags: 0
@@ -2599,8 +2663,8 @@ MonoBehaviour:
   cohesion: 0.0003
   gravity: -9.8
   damping: 0.995
-  boundsMin: {x: -10, y: -0, z: -10}
-  boundsMax: {x: 10, y: 20, z: 10}
+  boundsMin: {x: -60, y: -0, z: -60}
+  boundsMax: {x: 60, y: 40, z: 60}
   bucket: {fileID: 202964311}
   drawingBoard: {fileID: 1273481096}
 --- !u!4 &1724698700
@@ -3034,6 +3098,7 @@ SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 1397465270}
+  - {fileID: 1239968281}
   - {fileID: 1724698700}
   - {fileID: 1511524331}
   - {fileID: 1069786370}
