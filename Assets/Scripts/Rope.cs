@@ -180,6 +180,11 @@ public class Rope : MonoBehaviour
             bucketVisual.rotation = Quaternion.FromToRotation(Vector3.up, -ropeDir);
         }
 
+        // Update real-time theta/phi from rope geometry
+        Vector3 pendulumVec = currentPos[segmentCount - 1] - currentPos[0];
+        theta = Mathf.Atan2(new Vector2(pendulumVec.x, pendulumVec.z).magnitude, -pendulumVec.y);
+        phi = Mathf.Atan2(pendulumVec.z, pendulumVec.x);
+
         UpdateMesh();
     }
 
