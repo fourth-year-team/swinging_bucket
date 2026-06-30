@@ -27,6 +27,7 @@ public class UIManager : MonoBehaviour
     private Image selectedSwatch;
     private Font uiFont;
 
+    private GameObject hudContent;
     private Text thetaText, phiText, paintText, massText;
     private Rope rope;
     private BucketBody bucket;
@@ -57,8 +58,12 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
-        if (hudPanel == null || !hudPanel.activeSelf) return;
-        if (rope == null || bucket == null) return;
+        if (hudPanel != null && Input.GetKeyDown(KeyCode.Tab))
+        {
+            hudContent.SetActive(!hudContent.activeSelf);
+        }
+
+        if (hudPanel == null || rope == null || bucket == null) return;
 
         float thetaDeg = rope.theta * Mathf.Rad2Deg;
         float phiDeg = rope.phi * Mathf.Rad2Deg;
@@ -101,7 +106,7 @@ public class UIManager : MonoBehaviour
         hrt.anchorMax = new Vector2(0, 1);
         hrt.pivot = new Vector2(0, 1);
         hrt.anchoredPosition = new Vector2(20, -20);
-        hrt.sizeDelta = new Vector2(260, 180);
+        hrt.sizeDelta = new Vector2(260, 220);
 
         Image hbg = hudPanel.GetComponent<Image>();
         hbg.color = new Color(0, 0, 0, 0.55f);
@@ -110,19 +115,102 @@ public class UIManager : MonoBehaviour
         hlg.childAlignment = TextAnchor.UpperLeft;
         hlg.childControlWidth = true;
         hlg.childControlHeight = false;
-        hlg.spacing = 4;
-        hlg.padding = new RectOffset(12, 12, 8, 8);
+        hlg.spacing = 0;
+        hlg.padding = new RectOffset(0, 0, 0, 0);
+
+        // Header row with title and toggle button
+        GameObject header = new GameObject("Header", typeof(Image), typeof(HorizontalLayoutGroup));
+        header.transform.SetParent(hudPanel.transform, false);
+
+        Image hdrBg = header.GetComponent<Image>();
+        hdrBg.color = new Color(0, 0, 0, 0.25f);
+
+        HorizontalLayoutGroup hlgH = header.GetComponent<HorizontalLayoutGroup>();
+        hlgH.childAlignment = TextAnchor.MiddleLeft;
+        hlgH.childControlWidth = true;
+        hlgH.childControlHeight = true;
+        hlgH.spacing = 0;
+        hlgH.padding = new RectOffset(10, 4, 0, 0);
+
+        LayoutElement hdrLE = header.AddComponent<LayoutElement>();
+        hdrLE.preferredHeight = 34;
+        hdrLE.flexibleHeight = 0;
+
+        GameObject headerLabel = new GameObject("HeaderLabel", typeof(Text));
+        headerLabel.transform.SetParent(header.transform, false);
+        Text hl = headerLabel.GetComponent<Text>();
+        hl.text = "INFO";
+        hl.fontSize = 20;
+        hl.fontStyle = FontStyle.Bold;
+        hl.alignment = TextAnchor.MiddleLeft;
+        hl.color = new Color(0.9f, 0.9f, 0.95f, 0.9f);
+        hl.font = uiFont;
+
+        LayoutElement hlLE = headerLabel.AddComponent<LayoutElement>();
+        hlLE.flexibleWidth = 1;
+
+        // Toggle button
+        GameObject toggleBtn = new GameObject("ToggleBtn", typeof(Image), typeof(Button));
+        toggleBtn.transform.SetParent(header.transform, false);
+
+        Image tglBg = toggleBtn.GetComponent<Image>();
+        tglBg.color = new Color(1, 1, 1, 0.2f);
+
+        LayoutElement tglLE = toggleBtn.AddComponent<LayoutElement>();
+        tglLE.preferredWidth = 34;
+        tglLE.flexibleWidth = 0;
+
+        GameObject tglLabel = new GameObject("TglLabel", typeof(Text));
+        tglLabel.transform.SetParent(toggleBtn.transform, false);
+        Text tglText = tglLabel.GetComponent<Text>();
+        tglText.text = "\u2212";
+        tglText.fontSize = 22;
+        tglText.fontStyle = FontStyle.Bold;
+        tglText.alignment = TextAnchor.MiddleCenter;
+        tglText.color = Color.white;
+        tglText.font = uiFont;
+
+        RectTransform tlr = tglLabel.GetComponent<RectTransform>();
+        tlr.anchorMin = Vector2.zero;
+        tlr.anchorMax = Vector2.one;
+        tlr.offsetMin = Vector2.zero;
+        tlr.offsetMax = Vector2.zero;
+
+        Button tglBtn = toggleBtn.GetComponent<Button>();
+        tglBtn.targetGraphic = tglBg;
+        tglBtn.transition = Selectable.Transition.ColorTint;
+        ColorBlock tcb = tglBtn.colors;
+        tcb.highlightedColor = new Color(1, 1, 1, 0.4f);
+        tglBtn.colors = tcb;
+
+        // Content container (toggled)
+        hudContent = new GameObject("Content", typeof(VerticalLayoutGroup));
+        hudContent.transform.SetParent(hudPanel.transform, false);
+
+        VerticalLayoutGroup clg = hudContent.GetComponent<VerticalLayoutGroup>();
+        clg.childAlignment = TextAnchor.UpperLeft;
+        clg.childControlWidth = true;
+        clg.childControlHeight = false;
+        clg.spacing = 4;
+        clg.padding = new RectOffset(12, 12, 6, 8);
 
         thetaText = AddHUDLine("hudTheta", "\u03B8: 0.0\u00B0");
         phiText = AddHUDLine("hudPhi", "\u03C6: 0.0\u00B0");
         paintText = AddHUDLine("hudPaint", "Paint: 0.0 kg");
         massText = AddHUDLine("hudMass", "Mass: 0.0 kg");
+
+        tglBtn.onClick.AddListener(() =>
+        {
+            bool show = !hudContent.activeSelf;
+            hudContent.SetActive(show);
+            tglText.text = show ? "\u2212" : "+";
+        });
     }
 
     Text AddHUDLine(string name, string initialText)
     {
         GameObject go = new GameObject(name, typeof(Text));
-        go.transform.SetParent(hudPanel.transform, false);
+        go.transform.SetParent(hudContent.transform, false);
 
         Text t = go.GetComponent<Text>();
         t.text = initialText;
