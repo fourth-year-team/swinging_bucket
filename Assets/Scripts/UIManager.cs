@@ -22,9 +22,14 @@ public class UIManager : MonoBehaviour
     };
 
     private Canvas canvas;
-    private GameObject panel;
+    private GameObject menuPanel;
+    private GameObject hudPanel;
     private Image selectedSwatch;
     private Font uiFont;
+
+    private Text thetaText, phiText, paintText, massText;
+    private Rope rope;
+    private BucketBody bucket;
 
     void Awake()
     {
@@ -37,10 +42,30 @@ public class UIManager : MonoBehaviour
         uiFont = GetFont();
 
         CreateCanvas();
-        CreateUI();
+        CreateHUD();
+        CreateMenu();
 
         if (presetColors.Length > 0)
             SelectColor(presetColors[0]);
+    }
+
+    void Start()
+    {
+        rope = FindFirstObjectByType<Rope>();
+        bucket = FindFirstObjectByType<BucketBody>();
+    }
+
+    void Update()
+    {
+        if (hudPanel == null || !hudPanel.activeSelf) return;
+        if (rope == null || bucket == null) return;
+
+        float thetaDeg = rope.theta * Mathf.Rad2Deg;
+        float phiDeg = rope.phi * Mathf.Rad2Deg;
+        thetaText.text = string.Format("\u03B8: {0:F1}\u00B0", thetaDeg);
+        phiText.text = string.Format("\u03C6: {0:F1}\u00B0", phiDeg);
+        paintText.text = string.Format("Paint: {0:F1} kg", bucket.paintMass);
+        massText.text = string.Format("Mass: {0:F1} kg", bucket.mass);
     }
 
     static Font GetFont()
@@ -55,7 +80,7 @@ public class UIManager : MonoBehaviour
 
     void CreateCanvas()
     {
-        GameObject go = new GameObject("MenuCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        GameObject go = new GameObject("UICanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         go.layer = LayerMask.NameToLayer("UI");
         canvas = go.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -66,20 +91,67 @@ public class UIManager : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920, 1080);
     }
 
-    void CreateUI()
+    void CreateHUD()
     {
-        panel = new GameObject("MenuPanel", typeof(Image), typeof(VerticalLayoutGroup));
-        panel.transform.SetParent(canvas.transform, false);
-        RectTransform prt = panel.GetComponent<RectTransform>();
+        hudPanel = new GameObject("HUD", typeof(Image), typeof(VerticalLayoutGroup));
+        hudPanel.transform.SetParent(canvas.transform, false);
+
+        RectTransform hrt = hudPanel.GetComponent<RectTransform>();
+        hrt.anchorMin = new Vector2(0, 1);
+        hrt.anchorMax = new Vector2(0, 1);
+        hrt.pivot = new Vector2(0, 1);
+        hrt.anchoredPosition = new Vector2(20, -20);
+        hrt.sizeDelta = new Vector2(260, 180);
+
+        Image hbg = hudPanel.GetComponent<Image>();
+        hbg.color = new Color(0, 0, 0, 0.55f);
+
+        VerticalLayoutGroup hlg = hudPanel.GetComponent<VerticalLayoutGroup>();
+        hlg.childAlignment = TextAnchor.UpperLeft;
+        hlg.childControlWidth = true;
+        hlg.childControlHeight = false;
+        hlg.spacing = 4;
+        hlg.padding = new RectOffset(12, 12, 8, 8);
+
+        thetaText = AddHUDLine("hudTheta", "\u03B8: 0.0\u00B0");
+        phiText = AddHUDLine("hudPhi", "\u03C6: 0.0\u00B0");
+        paintText = AddHUDLine("hudPaint", "Paint: 0.0 kg");
+        massText = AddHUDLine("hudMass", "Mass: 0.0 kg");
+    }
+
+    Text AddHUDLine(string name, string initialText)
+    {
+        GameObject go = new GameObject(name, typeof(Text));
+        go.transform.SetParent(hudPanel.transform, false);
+
+        Text t = go.GetComponent<Text>();
+        t.text = initialText;
+        t.fontSize = 22;
+        t.fontStyle = FontStyle.Bold;
+        t.alignment = TextAnchor.MiddleLeft;
+        t.color = new Color(0.9f, 0.9f, 0.95f, 0.95f);
+        t.font = uiFont;
+
+        LayoutElement le = go.AddComponent<LayoutElement>();
+        le.preferredHeight = 32;
+        le.flexibleHeight = 0;
+        return t;
+    }
+
+    void CreateMenu()
+    {
+        menuPanel = new GameObject("MenuPanel", typeof(Image), typeof(VerticalLayoutGroup));
+        menuPanel.transform.SetParent(canvas.transform, false);
+        RectTransform prt = menuPanel.GetComponent<RectTransform>();
         prt.anchorMin = Vector2.zero;
         prt.anchorMax = Vector2.one;
         prt.offsetMin = Vector2.zero;
         prt.offsetMax = Vector2.zero;
 
-        Image bg = panel.GetComponent<Image>();
+        Image bg = menuPanel.GetComponent<Image>();
         bg.color = new Color(0.12f, 0.12f, 0.14f, 0.92f);
 
-        VerticalLayoutGroup vlg = panel.GetComponent<VerticalLayoutGroup>();
+        VerticalLayoutGroup vlg = menuPanel.GetComponent<VerticalLayoutGroup>();
         vlg.childAlignment = TextAnchor.MiddleCenter;
         vlg.childControlWidth = true;
         vlg.childControlHeight = true;
@@ -88,9 +160,9 @@ public class UIManager : MonoBehaviour
         vlg.spacing = 20;
         vlg.padding = new RectOffset(80, 80, 60, 60);
 
-        AddTitle(panel.transform);
-        AddColorPicker(panel.transform);
-        AddStartButton(panel.transform);
+        AddTitle(menuPanel.transform);
+        AddColorPicker(menuPanel.transform);
+        AddStartButton(menuPanel.transform);
     }
 
     void AddTitle(Transform parent)
@@ -125,7 +197,6 @@ public class UIManager : MonoBehaviour
         LayoutElement sectionLE = section.AddComponent<LayoutElement>();
         sectionLE.flexibleHeight = 1;
 
-        // Label
         GameObject labelGO = new GameObject("ColorLabel", typeof(Text));
         labelGO.transform.SetParent(section.transform, false);
         Text label = labelGO.GetComponent<Text>();
@@ -139,7 +210,6 @@ public class UIManager : MonoBehaviour
         labelLE.preferredHeight = 40;
         labelLE.flexibleHeight = 0;
 
-        // Swatch grid
         int cols = 6;
         GameObject gridGO = new GameObject("ColorGrid", typeof(GridLayoutGroup));
         gridGO.transform.SetParent(section.transform, false);
@@ -190,7 +260,11 @@ public class UIManager : MonoBehaviour
         if (selectedSwatch != null)
             selectedSwatch.rectTransform.localScale = Vector3.one;
 
-        foreach (Transform child in panel.transform.Find("ColorSection/ColorGrid"))
+        if (menuPanel == null) return;
+        Transform grid = menuPanel.transform.Find("ColorSection/ColorGrid");
+        if (grid == null) return;
+
+        foreach (Transform child in grid)
         {
             Image img = child.GetComponent<Image>();
             if (Mathf.Approximately(img.color.r, color.r) &&
@@ -243,9 +317,8 @@ public class UIManager : MonoBehaviour
         btn.onClick.AddListener(() =>
         {
             GameManager.Instance.StartGame();
-            Destroy(panel);
-            Destroy(canvas.gameObject);
-            Destroy(gameObject);
+            Destroy(menuPanel);
+            menuPanel = null;
         });
     }
 }

@@ -13,8 +13,8 @@ public class Rope : MonoBehaviour
 
     public bool angularMotion = true;
 
-    private float theta;
-    private float phi;
+    public float theta;
+    public float phi;
 
     [Header("Rope Setup")]
     public Transform anchor;
