@@ -157,56 +157,81 @@ void CSForcesAndIntegrate(uint3 id : SV_DispatchThreadID)
 
     float3 pos_i = _Particles[id.x].posAndDensity.xyz;
     float3 vel_i = _Particles[id.x].velAndPressure.xyz;
+    float escaped_i = _Particles[id.x].velAndPressure.w;
 
-    vel_i.y += _Gravity * _DeltaTime;
+    // Apply gravity: extra acceleration for escaped particles to form a high-power stream
+    if (escaped_i > 0.5f)
+    {
+        vel_i.y += _Gravity * 3.0f * _DeltaTime;
+    }
+    else
+    {
+        vel_i.y += _Gravity * _DeltaTime;
+    }
 
-    float3 cellPos = floor(pos_i / _CellSize);
-    int3 cell = int3(cellPos);
+    // Only compute SPH forces for particles still inside the bucket to prevent the stream from spraying apart
+    if (escaped_i < 0.5f)
+    {
+        float3 cellPos = floor(pos_i / _CellSize);
+        int3 cell = int3(cellPos);
 
-    for (int dx = -1; dx <= 1; dx++)
-        for (int dy = -1; dy <= 1; dy++)
-            for (int dz = -1; dz <= 1; dz++)
-            {
-                uint nHash = HashCell3(cell + int3(dx, dy, dz));
-                int start = _CellStart[nHash];
-                if (start == -1) continue;
-
-                int end = _CellEnd[nHash];
-
-                for (int k = start; k < end; k++)
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dz = -1; dz <= 1; dz++)
                 {
-                    uint j = _SortedIndices[k];
-                    if (j == id.x) continue;
+                    uint nHash = HashCell3(cell + int3(dx, dy, dz));
+                    int start = _CellStart[nHash];
+                    if (start == -1) continue;
 
-                    float3 pos_j = _Particles[j].posAndDensity.xyz;
-                    float3 dir = pos_j - pos_i;
-                    float dist = length(dir);
+                    int end = _CellEnd[nHash];
 
-                    if (dist < _ParticleRadius * 2.0f && dist > 0.0001f)
+                    for (int k = start; k < end; k++)
                     {
-                        float3 normal = dir / dist;
-                        float overlap = _ParticleRadius * 2.0f - dist;
-                        float3 force = normal * overlap * _PressureStrength;
-                        force.y *= 0.2f;
-                        vel_i -= force * _DeltaTime;
-                        float3 relativeVelocity = _Particles[j].velAndPressure.xyz - vel_i;
-                        vel_i += relativeVelocity * _Viscosity;
+                        uint j = _SortedIndices[k];
+                        if (j == id.x) continue;
 
-                        // Cohesion
-                        float cohesionDistance = _ParticleRadius * 2.5f;
-                        if (dist < cohesionDistance)
+                        float escaped_j = _Particles[j].velAndPressure.w;
+                        if (escaped_j > 0.5f) continue;
+
+                        float3 pos_j = _Particles[j].posAndDensity.xyz;
+                        float3 dir = pos_j - pos_i;
+                        float dist = length(dir);
+
+                        if (dist < _ParticleRadius * 2.0f && dist > 0.0001f)
                         {
-                            float strength = (cohesionDistance - dist) * _Cohesion;
-                            vel_i += normal * strength;
-                        }
+                            float3 normal = dir / dist;
+                            float overlap = _ParticleRadius * 2.0f - dist;
+                            float3 force = normal * overlap * _PressureStrength;
+                            force.y *= 0.2f;
+                            vel_i -= force * _DeltaTime;
+                            float3 relativeVelocity = _Particles[j].velAndPressure.xyz - vel_i;
+                            vel_i += relativeVelocity * _Viscosity;
 
-                        pos_i -= normal * overlap * 0.08f;
+                            // Cohesion
+                            float cohesionDistance = _ParticleRadius * 2.5f;
+                            if (dist < cohesionDistance)
+                            {
+                                float strength = (cohesionDistance - dist) * _Cohesion;
+                                vel_i += normal * strength;
+                            }
+
+                            pos_i -= normal * overlap * 0.08f;
+                        }
                     }
                 }
-            }
+    }
 
     pos_i += vel_i * _DeltaTime;
-    vel_i *= _Damping;
+
+    // Apply damping
+    if (escaped_i < 0.5f)
+    {
+        vel_i *= _Damping;
+    }
+    else
+    {
+        vel_i *= 0.999f; // Minor drag to keep it stable but fast
+    }
 
     // Boundary check
     if (pos_i.y < _BoundsMin.y) { pos_i.y = _BoundsMin.y; vel_i.y *= -0.5f; }
@@ -237,30 +262,44 @@ void CollideBoardAndPaint(inout float3 pos, inout float3 vel, float radius)
     {
         if (length(vel) > 0.05f)
         {
-            float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
-            float v = (pos.z - minZ) / (_BoardHalfSize.z * 2.0);
-            int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
-            int splatRadius = 3;
-            for (int dx = -splatRadius; dx <= splatRadius; dx++)
+            // Swept painting: Paint along the path from the previous frame's position to current position
+            // to make a perfectly continuous solid line instead of dotted points.
+            float3 startPos = pos - vel * _DeltaTime;
+            float3 endPos = pos;
+            
+            // Project heights to ensure they align nicely with the board surface
+            startPos.y = _BoardTopY + radius;
+            endPos.y = _BoardTopY + radius;
+            
+            int numSteps = 8;
+            for (int step = 0; step <= numSteps; step++)
             {
-                for (int dz = -splatRadius; dz <= splatRadius; dz++)
+                float3 interpPos = lerp(startPos, endPos, (float)step / (float)numSteps);
+                
+                float u = (interpPos.x - minX) / (_BoardHalfSize.x * 2.0);
+                float v = (interpPos.z - minZ) / (_BoardHalfSize.z * 2.0);
+                int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
+                int splatRadius = 4; // Thicker, cleaner line footprint
+                for (int dx = -splatRadius; dx <= splatRadius; dx++)
                 {
-                    int2 p = center + int2(dx, dz);
-                    if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
+                    for (int dz = -splatRadius; dz <= splatRadius; dz++)
                     {
-                        float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
-                        if (falloff > 0.0)
+                        int2 p = center + int2(dx, dz);
+                        if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
                         {
-                            _BoardTexture[p] = lerp(_BoardTexture[p], _PaintColor, saturate(falloff * 0.8));
+                            float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
+                            if (falloff > 0.0)
+                            {
+                                _BoardTexture[p] = lerp(_BoardTexture[p], _PaintColor, saturate(falloff * 0.95));
+                            }
                         }
                     }
                 }
             }
         }
         pos.y = _BoardTopY + radius;
-        if (vel.y < 0.0f) vel.y = -vel.y * (1.0f - _BoardAbsorption);
-        vel.x *= _BoardFriction; vel.z *= _BoardFriction;
-        if (length(vel) < (1.0f - _BoardStickiness) * 2.0f) vel = float3(0,0,0);
+        // Instantly stop the particle on impact to draw sharp lines without sliding/splattering
+        vel = float3(0, 0, 0); 
     }
 }
 
@@ -300,13 +339,16 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
     // --- Escape detection ---
     // If a particle is inside the hole column and close to the floor,
     // force it to move below the floor and immediately mark it as escaped.
-    // This physically forces the fluid to drain out continuously.
+    // Zero out XZ in local coordinates to keep the stream aligned linearly.
     if (holeActive && insideHoleXZ && currLocal.y < _BucketBottomY + particleRadius * 2.0f)
     {
         escapedThroughHole = 1.0f;
+        currLocal.x = 0.0f; // Force perfectly centered on the hole
+        currLocal.z = 0.0f;
         currLocal.y = _BucketBottomY - particleRadius * 1.1f; // Place it just below the bottom
-        // Give it a strong initial downward velocity in world space
-        float3 downLocal = float3(0.0f, -5.0f, 0.0f);
+        
+        // Give it a strong downward velocity, and match the bucket's horizontal velocity exactly (zero horizontal relative velocity)
+        float3 downLocal = float3(0.0f, -28.0f, 0.0f);
         float3 downWorld = mul((float3x3)_BucketLocalToWorld, downLocal);
         outPos = mul(_BucketLocalToWorld, float4(currLocal, 1)).xyz;
         outVel = bucketVel + downWorld;
