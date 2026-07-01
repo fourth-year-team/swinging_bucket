@@ -267,6 +267,7 @@ void CollideBoardAndPaint(inout float3 pos, inout float3 vel, float radius)
 // Bucket Logic
 void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout float escapedThroughHole, inout float3 outPos, inout float3 outVel)
 {
+    // Already escaped — skip all bucket collision
     if (escapedThroughHole > 0.5f)
     {
         outPos = worldPos;
@@ -274,36 +275,66 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
         return;
     }
 
+    // --- Transform to bucket local space ---
     float3 currLocal = mul(_BucketWorldToLocal, float4(worldPos, 1)).xyz;
     float3 bucketCenter = mul(_BucketLocalToWorld, float4(0, 0, 0, 1)).xyz;
     float3 relWorld = worldPos - bucketCenter;
     float3 bucketVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, relWorld);
     float3 relVel = worldVel - bucketVel;
 
+    // --- Bucket geometry ---
     float h = max(_BucketTopY - _BucketBottomY, 1e-4f);
-    float t = saturate((currLocal.y - _BucketBottomY) / h);
-    float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, t);
+    float tHeight = saturate((currLocal.y - _BucketBottomY) / h);
+    float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, tHeight);
+    float maxFloorRadius = bucketRadius; // Keep in scope for both drain force and floor collision
     float radial = length(currLocal.xz);
-    float radius = bucketRadius - particleRadius;
+    float wallRadius = bucketRadius - particleRadius;
     float sweep = length(bucketVel) * _DeltaTime;
-    float safeRadius = radius - sweep;
+    float safeRadius = wallRadius - sweep;
     float bottom = _BucketBottomY + particleRadius;
-    float holePassRadius = max(_HoleRadius - particleRadius, 0.0f);
-    bool holeActive = (_HoleEnabled == 1) && (holePassRadius > 0.0f);
-    bool insideHole = holeActive && (radial < holePassRadius);
 
-    // Once a particle center has cleared the bottom plane through the hole,
-    // mark it as escaped so later bucket motion cannot pull it back inside.
-    if (holeActive && insideHole && currLocal.y < _BucketBottomY)
+    // --- Hole parameters ---
+    bool holeActive = (_HoleEnabled == 1) && (_HoleRadius > 0.0f);
+    bool insideHoleXZ = holeActive && (radial < _HoleRadius);
+
+    // --- Escape detection ---
+    // If a particle is inside the hole column and close to the floor,
+    // force it to move below the floor and immediately mark it as escaped.
+    // This physically forces the fluid to drain out continuously.
+    if (holeActive && insideHoleXZ && currLocal.y < _BucketBottomY + particleRadius * 2.0f)
     {
         escapedThroughHole = 1.0f;
-        outPos = worldPos;
-        outVel = worldVel;
+        currLocal.y = _BucketBottomY - particleRadius * 1.1f; // Place it just below the bottom
+        // Give it a strong initial downward velocity in world space
+        float3 downLocal = float3(0.0f, -5.0f, 0.0f);
+        float3 downWorld = mul((float3x3)_BucketLocalToWorld, downLocal);
+        outPos = mul(_BucketLocalToWorld, float4(currLocal, 1)).xyz;
+        outVel = bucketVel + downWorld;
         return;
     }
 
+    // --- Only process particles vertically within the bucket region ---
     if (currLocal.y >= _BucketBottomY - particleRadius - 1.0f && currLocal.y <= _BucketTopY + particleRadius + sweep)
     {
+        // ====== BUCKET-WIDE SINK VORTEX ======
+        // Pull particles toward the center line and downward inside the center column
+        // at all heights to maintain a continuous, steady drain flow.
+        if (holeActive && currLocal.y < _BucketTopY && radial < bucketRadius)
+        {
+            // Center-directed pull force.
+            // As particles get closer to the bottom, the centering pull becomes extremely strong
+            // to counteract high swinging velocities and inertia.
+            float heightFactor = saturate((_BucketTopY - currLocal.y) / h); // 0 at top, 1 at bottom
+            float pullStrength = 100.0f + heightFactor * 150.0f; 
+            
+            float2 toCenter = -currLocal.xz;
+            // Apply a strong centering and downward velocity adjustment
+            float3 pullLocal = float3(toCenter.x, -5.0f, toCenter.y) * pullStrength * _DeltaTime;
+            float3 pullWorld = mul((float3x3)_BucketLocalToWorld, pullLocal);
+            relVel += pullWorld;
+        }
+
+        // ====== WALL COLLISION (unchanged) ======
         if (radial > safeRadius)
         {
             float2 dir = currLocal.xz / max(radial, 1e-6f);
@@ -315,22 +346,43 @@ void CollideBucket(float3 worldPos, float3 worldVel, float particleRadius, inout
             if (vn < 0) relVel -= vn * nWorld;
             relVel *= 0.96f;
         }
+
+        // ====== FLOOR COLLISION WITH FUNNEL ======
         if (currLocal.y < bottom)
         {
-            if (!insideHole)
+            if (!holeActive || !insideHoleXZ)
             {
-                // Solid floor region: push particle back up and reflect velocity.
-                // Same hand-written normal-impulse math as before - no physics engine.
-                currLocal.y = bottom;
-                float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
-                float vn = dot(relVel, nWorld);
-                if (vn < 0) relVel -= vn * nWorld;
-                relVel *= 0.96f;
+                if (holeActive)
+                {
+                    // FUNNEL: the floor smoothly dips toward the hole center
+                    // so particles naturally slide into the opening.
+                    float funnelOuter = maxFloorRadius * 0.8f;
+                    float funnelT = saturate(radial / funnelOuter);
+                    float funnelDepth = particleRadius * 3.5f;
+                    float effectiveBottom = lerp(bottom - funnelDepth, bottom, smoothstep(0.0f, 1.0f, funnelT));
+
+                    if (currLocal.y < effectiveBottom)
+                    {
+                        currLocal.y = effectiveBottom;
+                        float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
+                        float vn = dot(relVel, nWorld);
+                        if (vn < 0) relVel -= vn * nWorld;
+                        relVel *= 0.96f;
+                    }
+                }
+                else
+                {
+                    // No hole — standard flat floor collision
+                    currLocal.y = bottom;
+                    float3 nWorld = normalize(mul((float3x3) _BucketLocalToWorld, float3(0, 1, 0)));
+                    float vn = dot(relVel, nWorld);
+                    if (vn < 0) relVel -= vn * nWorld;
+                    relVel *= 0.96f;
+                }
             }
-            // If insideHole == true: do nothing at all.
-            // The particle exits through the hole under SPH pressure and gravity alone.
         }
     }
+
     outPos = mul(_BucketLocalToWorld, float4(currLocal, 1)).xyz;
     outVel = relVel + bucketVel;
 }
