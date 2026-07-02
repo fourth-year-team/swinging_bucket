@@ -2,6 +2,7 @@
 #pragma kernel CSHash
 #pragma kernel CSBitonicSort
 #pragma kernel CSCellBounds
+#pragma kernel CSComputeDensityPressure
 #pragma kernel CSForcesAndIntegrate
 #pragma kernel CSCollideObstacles
 
@@ -60,10 +61,13 @@ int _SortSize;
 int _NumObstacles;
 
 float _CellSize;
+float _SmoothingRadius;
 float _DeltaTime;
 float _Gravity;
 float _Damping;
 float _ParticleRadius;
+float _RestDensity;
+float _ParticleMass;
 float _PressureStrength;
 float _Viscosity;
 float _Cohesion;
@@ -82,6 +86,11 @@ uint HashCell3(int3 c)
 uint HashCellPos(float3 pos)
 {
     return HashCell3(int3(floor(pos / _CellSize)));
+}
+
+float SmoothingWeight(float dist, float radius)
+{
+    return pow(saturate(1.0f - dist / max(radius, 1e-5f)), 3.0f);
 }
 
 [numthreads(256, 1, 1)]
@@ -151,12 +160,51 @@ void CSCellBounds(uint3 id : SV_DispatchThreadID)
 }
 
 [numthreads(256, 1, 1)]
+void CSComputeDensityPressure(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint) _NumParticles) return;
+
+    float3 pos_i = _Particles[id.x].posAndDensity.xyz;
+    float density = 0.0f;
+
+    float3 cellPos = floor(pos_i / _CellSize);
+    int3 cell = int3(cellPos);
+
+    for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                uint nHash = HashCell3(cell + int3(dx, dy, dz));
+                int start = _CellStart[nHash];
+                if (start == -1) continue;
+
+                int end = _CellEnd[nHash];
+
+                for (int k = start; k < end; k++)
+                {
+                    uint j = _SortedIndices[k];
+                    float3 pos_j = _Particles[j].posAndDensity.xyz;
+                    float dist = length(pos_j - pos_i);
+                    if (dist < _SmoothingRadius)
+                    {
+                        density += _ParticleMass * SmoothingWeight(dist, _SmoothingRadius);
+                    }
+                }
+            }
+
+    float pressure = max(density - _RestDensity, 0.0f) / max(_RestDensity, 1e-4f);
+    _Particles[id.x].posAndDensity.w = density;
+    _Particles[id.x].velAndPressure.w = pressure;
+}
+
+[numthreads(256, 1, 1)]
 void CSForcesAndIntegrate(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= (uint) _NumParticles) return;
 
     float3 pos_i = _Particles[id.x].posAndDensity.xyz;
     float3 vel_i = _Particles[id.x].velAndPressure.xyz;
+    float pressure_i = _Particles[id.x].velAndPressure.w;
 
     vel_i.y += _Gravity * _DeltaTime;
 
@@ -182,25 +230,27 @@ void CSForcesAndIntegrate(uint3 id : SV_DispatchThreadID)
                     float3 dir = pos_j - pos_i;
                     float dist = length(dir);
 
-                    if (dist < _ParticleRadius * 2.0f && dist > 0.0001f)
+                    if (dist < _SmoothingRadius && dist > 0.0001f)
                     {
                         float3 normal = dir / dist;
-                        float overlap = _ParticleRadius * 2.0f - dist;
-                        float3 force = normal * overlap * _PressureStrength;
-                        force.y *= 0.2f;
-                        vel_i -= force * _DeltaTime;
+                        float overlap = _SmoothingRadius - dist;
+
+                        float pressure_j = _Particles[j].velAndPressure.w;
+                        float pressureTerm = (pressure_i + pressure_j) * 0.5f;
+                        vel_i -= normal * overlap * pressureTerm * _PressureStrength * _DeltaTime;
+
                         float3 relativeVelocity = _Particles[j].velAndPressure.xyz - vel_i;
-                        vel_i += relativeVelocity * _Viscosity;
+                        vel_i += relativeVelocity * _Viscosity * _DeltaTime;
 
                         // Cohesion
-                        float cohesionDistance = _ParticleRadius * 2.5f;
+                        float cohesionDistance = _SmoothingRadius * 0.75f;
                         if (dist < cohesionDistance)
                         {
                             float strength = (cohesionDistance - dist) * _Cohesion;
                             vel_i += normal * strength;
                         }
 
-                        pos_i -= normal * overlap * 0.08f;
+                        pos_i -= normal * overlap * 0.04f;
                     }
                 }
             }

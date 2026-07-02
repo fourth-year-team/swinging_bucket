@@ -9,7 +9,15 @@ public class SPHSimulation : MonoBehaviour
 
     [Header("Rendering")]
     public Material particleMaterial;
-    public float particleRadius = 0.05f;
+    public Shader particleThicknessShader;
+    public float particleRadius = 0.045f;
+    public float thicknessScale = 3.0f;
+    public float thicknessOpacity = 0.22f;
+
+    [Header("Paint Volume")]
+    [Min(0f)] public float paintLiters = 12f;
+    public float paintDensityKgPerLiter = 1.25f;
+    public bool sealPaintInBucket = false;
 
     [Header("Spawn Grid (x * y * z = particle count)")]
     public int spawnX = 16;
@@ -17,13 +25,13 @@ public class SPHSimulation : MonoBehaviour
     public int spawnZ = 16;
 
     [Header("SPH Parameters")]
-    public float smoothingRadius = 0.13f;  // 1.3 * spacing (~50 neighbors)
-    public float restDensity = 1000f;
-    public float stiffness = 50f;  // Lowered to match old version
-    public float viscosity = 0.01f;  // Light viscosity - prevents clumping while maintaining flow
-    public float cohesion = 0.0003f; // Lowered to match old version
+    public float smoothingRadius = 0.115f;  // tighter neighbor radius for a denser paint look
+    public float restDensity = 1250f;
+    public float stiffness = 90f;  // stronger pressure response for a thicker body
+    public float viscosity = 0.06f;  // higher internal drag to reduce watery motion
+    public float cohesion = 0.0012f; // slightly stronger pull so particles stay together
     public float gravity = -9.8f;
-    public float damping = 0.995f;
+    public float damping = 0.992f;
 
     [Header("Bounds")]
     public Vector3 boundsMin = new Vector3(-10f, -0f, -10f);
@@ -39,8 +47,10 @@ public class SPHSimulation : MonoBehaviour
     private ComputeBuffer particleBuffer, sortedIndices, cellHash, cellStart, cellEnd, argsBuffer;
     private int numParticles, sortSize, tableSize;
     private float bucketSweep;
+    private float particleMass;
+    private Material thicknessMaterial;
 
-    private int kClearGrid, kHash, kBitonicSort, kCellBounds, kForcesAndIntegrate, kCollideObstacles;
+    private int kClearGrid, kHash, kBitonicSort, kCellBounds, kDensityPressure, kForcesAndIntegrate, kCollideObstacles;
 
     [StructLayout(LayoutKind.Sequential)]
     struct Particle
@@ -66,7 +76,7 @@ public class SPHSimulation : MonoBehaviour
             return;
         }
 
-        numParticles = spawnX * spawnY * spawnZ;
+        RecalculatePaintSettings();
 
         tableSize = 1048576;  // 2^20
         sortSize = Mathf.NextPowerOfTwo(numParticles);
@@ -82,7 +92,35 @@ public class SPHSimulation : MonoBehaviour
             GameManager.OnColorChanged += OnPaintColorChanged;
             GameManager.OnGameStarted += OnGameStarted;
         }
+
+        if (particleThicknessShader == null)
+            particleThicknessShader = Shader.Find("Custom/ParticleThickness");
+
+        if (particleThicknessShader != null)
+            thicknessMaterial = new Material(particleThicknessShader);
+
         UpdateParticleMaterialColor(currentPaintColor);
+    }
+
+    void OnValidate()
+    {
+        if (paintLiters < 0f) paintLiters = 0f;
+        if (paintDensityKgPerLiter < 0.01f) paintDensityKgPerLiter = 0.01f;
+        RecalculatePaintSettings();
+    }
+
+    void RecalculatePaintSettings()
+    {
+        float spacing = Mathf.Max(particleRadius * 1.2f, 0.0001f);
+        numParticles = Mathf.Max(1, Mathf.RoundToInt(paintLiters * 200f));
+
+        int cubeSide = Mathf.Max(1, Mathf.RoundToInt(Mathf.Pow(numParticles, 1f / 3f)));
+        spawnX = cubeSide;
+        spawnY = cubeSide;
+        spawnZ = Mathf.Max(1, Mathf.CeilToInt(numParticles / (float)(spawnX * spawnY)));
+
+        float totalPaintMass = paintLiters * paintDensityKgPerLiter;
+        particleMass = totalPaintMass / numParticles;
     }
 
     void CacheKernels()
@@ -91,6 +129,7 @@ public class SPHSimulation : MonoBehaviour
         kHash = computeShader.FindKernel("CSHash");
         kBitonicSort = computeShader.FindKernel("CSBitonicSort");
         kCellBounds = computeShader.FindKernel("CSCellBounds");
+        kDensityPressure = computeShader.FindKernel("CSComputeDensityPressure");
         kForcesAndIntegrate = computeShader.FindKernel("CSForcesAndIntegrate");
         kCollideObstacles = computeShader.FindKernel("CSCollideObstacles");
     }
@@ -110,25 +149,67 @@ public class SPHSimulation : MonoBehaviour
         Particle[] data = new Particle[numParticles];
         float spacing = particleRadius * 1.2f;
 
-        Vector3 bMin = boundsMin + Vector3.one * spacing;
-        Vector3 bMax = boundsMax - Vector3.one * spacing;
-        Vector3 boundsCenter = (bMin + bMax) * 0.5f;
+        bool spawnInBucket = bucket != null;
         Vector3 totalSize = new Vector3(
             (spawnX - 1) * spacing,
             (spawnY - 1) * spacing,
             (spawnZ - 1) * spacing);
-        Vector3 spawnOffset = boundsCenter - totalSize * 0.5f;
+
+        Vector3 spawnOffset;
+        Vector3 spawnOrigin;
+
+        if (spawnInBucket)
+        {
+            float bucketHeight = Mathf.Max(bucket.topY - bucket.bottomY, spacing);
+            float bucketCapacity = Mathf.PI * bucketHeight * (bucket.bottomRadius * bucket.bottomRadius + bucket.bottomRadius * bucket.topRadius + bucket.topRadius * bucket.topRadius) / 3f;
+            float fillRatio = Mathf.Clamp01(paintLiters / Mathf.Max(bucketCapacity, 0.0001f));
+
+            float localBottomY = bucket.bottomY + particleRadius * 1.25f;
+            float localTopY = Mathf.Min(bucket.topY - particleRadius * 1.25f, localBottomY + bucketHeight * Mathf.Max(fillRatio, 0.08f));
+            Vector3 localCenter = new Vector3(0f, (localBottomY + localTopY) * 0.5f, 0f);
+
+            Matrix4x4 spawnMatrix = bucket.initialLocalToWorldMatrix;
+            spawnOrigin = spawnMatrix.MultiplyPoint3x4(localCenter);
+            spawnOffset = -totalSize * 0.5f;
+        }
+        else
+        {
+            Vector3 bMin = boundsMin + Vector3.one * spacing;
+            Vector3 bMax = boundsMax - Vector3.one * spacing;
+            Vector3 boundsCenter = (bMin + bMax) * 0.5f;
+            spawnOrigin = boundsCenter;
+            spawnOffset = -totalSize * 0.5f;
+        }
 
         int idx = 0;
-        for (int y = 0; y < spawnY; y++)
-            for (int x = 0; x < spawnX; x++)
-                for (int z = 0; z < spawnZ; z++)
+        for (int y = 0; y < spawnY && idx < numParticles; y++)
+        {
+            float yT = spawnY > 1 ? y / (float)(spawnY - 1) : 0f;
+            for (int x = 0; x < spawnX && idx < numParticles; x++)
+            {
+                float xT = spawnX > 1 ? x / (float)(spawnX - 1) : 0f;
+                for (int z = 0; z < spawnZ && idx < numParticles; z++)
                 {
-                    Vector3 p = spawnOffset + new Vector3(x * spacing, y * spacing, z * spacing);
+                    float zT = spawnZ > 1 ? z / (float)(spawnZ - 1) : 0f;
+
+                    float localY = Mathf.Lerp(bucket != null ? bucket.bottomY + particleRadius * 1.25f : boundsMin.y + spacing, bucket != null ? Mathf.Min(bucket.topY - particleRadius * 1.25f, bucket.bottomY + particleRadius * 1.25f + (bucket.topY - bucket.bottomY)) : boundsMax.y - spacing, yT);
+                    float radiusAtY = bucket != null
+                        ? Mathf.Lerp(bucket.bottomRadius, bucket.topRadius, yT) * 0.78f - particleRadius
+                        : Mathf.Min(totalSize.x, totalSize.z) * 0.5f;
+
+                    float localX = Mathf.Lerp(-radiusAtY, radiusAtY, xT);
+                    float localZ = Mathf.Lerp(-radiusAtY, radiusAtY, zT);
+
+                    Vector3 p = bucket != null
+                        ? bucket.initialLocalToWorldMatrix.MultiplyPoint3x4(new Vector3(localX, localY, localZ))
+                        : spawnOrigin + spawnOffset + new Vector3(x * spacing, y * spacing, z * spacing);
+
                     data[idx].posAndDensity = new Vector4(p.x, p.y, p.z, 0);
                     data[idx].velAndPressure = Vector4.zero;
                     idx++;
                 }
+            }
+        }
         particleBuffer.SetData(data);
     }
     void SetupArgs()
@@ -157,14 +238,17 @@ public class SPHSimulation : MonoBehaviour
         computeShader.SetInt("_NumParticles", numParticles);
         computeShader.SetInt("_SortSize", sortSize);
 
-        computeShader.SetFloat("_CellSize", particleRadius * 2f);
+        computeShader.SetFloat("_CellSize", smoothingRadius);
+        computeShader.SetFloat("_SmoothingRadius", smoothingRadius);
         computeShader.SetFloat("_Gravity", gravity);
         computeShader.SetFloat("_DeltaTime", dt);
         computeShader.SetFloat("_Damping", damping);
         computeShader.SetFloat("_ParticleRadius", particleRadius);
         computeShader.SetFloat("_Viscosity", viscosity);
         computeShader.SetFloat("_Cohesion", cohesion);
-        computeShader.SetFloat("_PressureStrength", 50f);
+        computeShader.SetFloat("_RestDensity", restDensity);
+        computeShader.SetFloat("_ParticleMass", particleMass);
+        computeShader.SetFloat("_PressureStrength", stiffness);
         computeShader.SetVector("_BoundsMin", boundsMin);
         computeShader.SetVector("_BoundsMax", boundsMax);
 
@@ -217,7 +301,7 @@ public class SPHSimulation : MonoBehaviour
         computeShader.SetFloat("_BucketTopRadius", bucket.topRadius * bucket.transform.lossyScale.x);
         computeShader.SetFloat("_BucketBottomY", bucket.bottomY * bucket.transform.lossyScale.y);
         computeShader.SetFloat("_BucketTopY", bucket.topY * bucket.transform.lossyScale.y);
-        computeShader.SetInt("_HoleEnabled", bucket.holeEnabled ? 1 : 0);
+        computeShader.SetInt("_HoleEnabled", sealPaintInBucket ? 0 : (bucket.holeEnabled ? 1 : 0));
         computeShader.SetFloat("_HoleRadius", bucket.holeRadius * bucket.transform.lossyScale.x);
     }
 
@@ -258,6 +342,9 @@ public class SPHSimulation : MonoBehaviour
         Bind(kCellBounds);
         computeShader.Dispatch(kCellBounds, t256, 1, 1);
 
+        Bind(kDensityPressure);
+        computeShader.Dispatch(kDensityPressure, t256, 1, 1);
+
         Bind(kForcesAndIntegrate);
         computeShader.Dispatch(kForcesAndIntegrate, t256, 1, 1);
 
@@ -293,8 +380,23 @@ public class SPHSimulation : MonoBehaviour
     {
         if (particleMaterial == null || particleBuffer == null) return;
 
+        if (thicknessMaterial != null)
+        {
+            thicknessMaterial.SetBuffer("_ParticleBuffer", particleBuffer);
+            thicknessMaterial.SetFloat("_ParticleSize", particleRadius * thicknessScale);
+            thicknessMaterial.SetFloat("_ThicknessOpacity", thicknessOpacity);
+            if (particleMaterial != null)
+            {
+                thicknessMaterial.SetColor("_ColorLow", particleMaterial.GetColor("_ColorLow"));
+                thicknessMaterial.SetColor("_ColorHigh", particleMaterial.GetColor("_ColorHigh"));
+                thicknessMaterial.SetFloat("_RestDensity", restDensity);
+            }
+            Graphics.DrawProceduralIndirect(thicknessMaterial, new Bounds(Vector3.zero, Vector3.one * 100f), MeshTopology.Triangles, argsBuffer);
+        }
+
         particleMaterial.SetBuffer("_ParticleBuffer", particleBuffer);
         particleMaterial.SetFloat("_ParticleSize", particleRadius * 2f);
+        particleMaterial.SetFloat("_RestDensity", restDensity);
 
         Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 100f);
         Graphics.DrawProceduralIndirect(particleMaterial, bounds, MeshTopology.Triangles, argsBuffer);
@@ -310,6 +412,8 @@ public class SPHSimulation : MonoBehaviour
     {
         if (drawingBoard != null)
             drawingBoard.ClearBoard();
+
+        SpawnParticles();
     }
 
     void UpdateParticleMaterialColor(Color color)
@@ -330,5 +434,7 @@ public class SPHSimulation : MonoBehaviour
         if (cellStart != null) cellStart.Release();
         if (cellEnd != null) cellEnd.Release();
         if (argsBuffer != null) argsBuffer.Release();
+
+        if (thicknessMaterial != null) Destroy(thicknessMaterial);
     }
 }

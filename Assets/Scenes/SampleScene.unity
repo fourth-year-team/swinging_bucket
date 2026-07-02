@@ -150,6 +150,55 @@ Transform:
   m_Children: []
   m_Father: {fileID: 719265577}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &111973609
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 111973611}
+  - component: {fileID: 111973610}
+  m_Layer: 0
+  m_Name: Marching Cubes
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &111973610
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 111973609}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed52addacaf04924881262bddf30d4d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Rendering.MarchingCubesFluidRenderer
+  isoLevel: 75
+  col: {r: 0, g: 1, b: 0.6532971, a: 0}
+  sim: {fileID: 1724698701}
+  drawShader: {fileID: 4800000, guid: 0fc503476e1b8824ba22cc107d7b1731, type: 3}
+  renderArgsCompute: {fileID: 7200000, guid: 4cfa81b3afd387a48959c41b5ef371b0, type: 3}
+--- !u!4 &111973611
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 111973609}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &150886100
 GameObject:
   m_ObjectHideFlags: 0
@@ -228,17 +277,51 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41d3351969f02c94586e4e422eca8848, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BucketObstacle
-  bottomY: 0.39
+  bottomY: 0.25
   topY: 5.25
-  bottomRadius: 1.6
-  topRadius: 1.9
+  bottomRadius: 1.75
+  topRadius: 1.95
   holeEnabled: 1
-  holeRadius: 0.3
+  holeRadius: 0.2
   emptyMass: 10
   paintLeakRate: 1
   linearVelocity: {x: 0, y: 0, z: 0}
   angularVelocity: {x: 0, y: 0, z: 0}
   prevWorldToLocalMatrix:
+    e00: 0
+    e01: 0
+    e02: 0
+    e03: 0
+    e10: 0
+    e11: 0
+    e12: 0
+    e13: 0
+    e20: 0
+    e21: 0
+    e22: 0
+    e23: 0
+    e30: 0
+    e31: 0
+    e32: 0
+    e33: 0
+  initialLocalToWorldMatrix:
+    e00: 0
+    e01: 0
+    e02: 0
+    e03: 0
+    e10: 0
+    e11: 0
+    e12: 0
+    e13: 0
+    e20: 0
+    e21: 0
+    e22: 0
+    e23: 0
+    e30: 0
+    e31: 0
+    e32: 0
+    e33: 0
+  initialWorldToLocalMatrix:
     e00: 0
     e01: 0
     e02: 0
@@ -1112,8 +1195,8 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 330585546}
   - {fileID: 205987412}
+  - {fileID: 330585546}
   m_Father: {fileID: 396450310}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &719265576
@@ -1726,10 +1809,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 15226ddaea3a4b14c9ff177be0a0e603, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Rope
-  startTheta: 45
-  startPhi: 30
+  startTheta: 20
+  startPhi: 0
   inital_offset: {x: 10, y: 0, z: 0}
   angularMotion: 0
+  theta: 0
+  phi: 0
   anchor: {fileID: 1511524331}
   bucketEnd: {fileID: 1405891728}
   segmentCount: 90
@@ -2162,6 +2247,88 @@ MonoBehaviour:
   friction: 0.55
   stickiness: 0.92
   absorption: 0.95
+--- !u!1 &1363558212
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1363558214}
+  - component: {fileID: 1363558213}
+  m_Layer: 0
+  m_Name: Particle Display
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1363558213
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1363558212}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bdfe3008efbf29745879ab1d40574478, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Rendering.ParticleDisplay3D
+  mode: 0
+  scale: 5
+  colourMap:
+    serializedVersion: 2
+    key0: {r: 0.5471698, g: 0, b: 0, a: 1}
+    key1: {r: 0.5471698, g: 0, b: 0, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 1
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
+  gradientResolution: 50
+  velocityDisplayMax: 8
+  meshResolution: 3
+  sim: {fileID: 1724698701}
+  shaderShaded: {fileID: 4800000, guid: 638bb1bdb9b8e374e8a5cbcd595e3973, type: 3}
+  shaderBillboard: {fileID: 4800000, guid: 13de1318fe7184e48bdf807b928b641b, type: 3}
+--- !u!4 &1363558214
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1363558212}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1388470137
 GameObject:
   m_ObjectHideFlags: 0
@@ -2632,43 +2799,17 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1724698700}
-  - component: {fileID: 1724698699}
+  - component: {fileID: 1724698701}
+  - component: {fileID: 1724698702}
+  - component: {fileID: 1724698704}
+  - component: {fileID: 1724698703}
   m_Layer: 0
-  m_Name: LiquidManager
+  m_Name: Simulation
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1724698699
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1724698698}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ca4363ea1c149074692ac3a2e8a368d2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SPHSimulation
-  computeShader: {fileID: 7200000, guid: 081b09f0f825e4a40acffec65b48d146, type: 3}
-  particleMaterial: {fileID: 2100000, guid: 443d2fd21b058924089005c3ad6ef104, type: 2}
-  particleRadius: 0.05
-  spawnX: 16
-  spawnY: 16
-  spawnZ: 16
-  smoothingRadius: 0.13
-  restDensity: 1000
-  stiffness: 50
-  viscosity: 0.01
-  cohesion: 0.0003
-  gravity: -9.8
-  damping: 0.995
-  boundsMin: {x: -60, y: -0, z: -60}
-  boundsMax: {x: 60, y: 40, z: 60}
-  bucket: {fileID: 202964311}
-  drawingBoard: {fileID: 1273481096}
 --- !u!4 &1724698700
 Transform:
   m_ObjectHideFlags: 0
@@ -2678,12 +2819,137 @@ Transform:
   m_GameObject: {fileID: 1724698698}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 9.95186, y: -0, z: 15.4886}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 50, y: 50, z: 50}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1724698701
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724698698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8b3b79f98be3f34e8fefade4cef2ade, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.FluidSim
+  normalTimeScale: 1
+  slowTimeScale: 0.1
+  maxTimestepFPS: 60
+  iterationsPerFrame: 3
+  gravity: -10
+  smoothingRadius: 0.2
+  targetDensity: 630
+  pressureMultiplier: 288
+  nearPressureMultiplier: 2.15
+  viscosityStrength: 0
+  collisionDamping: 0.95
+  foamActive: 0
+  maxFoamParticleCount: 1000
+  trappedAirSpawnRate: 0
+  spawnRateFadeInTime: 1
+  spawnRateFadeStartTime: 0
+  trappedAirVelocityMinMax: {x: 0, y: 0}
+  foamKineticEnergyMinMax: {x: 0, y: 0}
+  bubbleBuoyancy: 0
+  sprayClassifyMaxNeighbours: 6
+  bubbleClassifyMinNeighbours: 20
+  bubbleScale: 0.8
+  bubbleChangeScaleSpeed: 1
+  renderToTex3D: 1
+  densityTextureRes: 150
+  compute: {fileID: 7200000, guid: 9443696acfd0ebe4fb503b56d952256c, type: 3}
+  spawner: {fileID: 1724698702}
+  bucketBody: {fileID: 202964311}
+  boundsMin: {x: -60, y: 0, z: -60}
+  boundsMax: {x: 60, y: 40, z: 60}
+  DensityMap: {fileID: 0}
+--- !u!114 &1724698702
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724698698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f99a384512b94654fbeb7c06c43f81ba, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.Spawner3D
+  particleSpawnDensity: 100
+  initialVel:
+    x: 0
+    y: 0
+    z: 0
+  jitterStrength: 0.035
+  showSpawnBounds: 0
+  spawnRegions:
+  - centre: {x: 3.92, y: -1.94, z: 0}
+    size: 4
+    debugDisplayCol: {r: 1, g: 0, b: 0, a: 0}
+  debug_num_particles: 5832
+  debug_spawn_volume: 64
+--- !u!23 &1724698703
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724698698}
+  m_Enabled: 0
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &1724698704
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724698698}
+  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!43 &1815261826
 Mesh:
   m_ObjectHideFlags: 0
@@ -3102,6 +3368,8 @@ SceneRoots:
   - {fileID: 1397465270}
   - {fileID: 1239968281}
   - {fileID: 1724698700}
+  - {fileID: 111973611}
+  - {fileID: 1363558214}
   - {fileID: 1511524331}
   - {fileID: 1069786370}
   - {fileID: 202964310}

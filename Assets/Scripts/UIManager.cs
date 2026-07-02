@@ -24,13 +24,21 @@ public class UIManager : MonoBehaviour
     private Canvas canvas;
     private GameObject menuPanel;
     private GameObject hudPanel;
+    private GameObject controlPanel;
     private Image selectedSwatch;
     private Font uiFont;
 
     private GameObject hudContent;
     private Text thetaText, phiText, paintText, massText;
+    private Slider thetaSlider, phiSlider;
+    private Text thetaSliderValue, phiSliderValue;
     private Rope rope;
     private BucketBody bucket;
+
+    private const float ThetaMin = 5f;
+    private const float ThetaMax = 85f;
+    private const float PhiMin = -180f;
+    private const float PhiMax = 180f;
 
     void Awake()
     {
@@ -44,6 +52,7 @@ public class UIManager : MonoBehaviour
 
         CreateCanvas();
         CreateHUD();
+        CreateControlPanel();
         CreateMenu();
 
         if (presetColors.Length > 0)
@@ -54,6 +63,7 @@ public class UIManager : MonoBehaviour
     {
         rope = FindFirstObjectByType<Rope>();
         bucket = FindFirstObjectByType<BucketBody>();
+        SyncAngleControlsFromRope();
     }
 
     void Update()
@@ -218,6 +228,188 @@ public class UIManager : MonoBehaviour
         });
     }
 
+
+    void CreateControlPanel()
+    {
+        controlPanel = new GameObject("ControlPanel", typeof(Image), typeof(VerticalLayoutGroup));
+        controlPanel.transform.SetParent(canvas.transform, false);
+
+        RectTransform prt = controlPanel.GetComponent<RectTransform>();
+        prt.anchorMin = new Vector2(1, 1);
+        prt.anchorMax = new Vector2(1, 1);
+        prt.pivot = new Vector2(1, 1);
+        prt.anchoredPosition = new Vector2(-30, -30);
+        prt.sizeDelta = new Vector2(340, 230);
+
+        Image bg = controlPanel.GetComponent<Image>();
+        bg.color = new Color(0.08f, 0.08f, 0.10f, 0.85f);
+
+        VerticalLayoutGroup vlg = controlPanel.GetComponent<VerticalLayoutGroup>();
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = false;
+        vlg.childForceExpandWidth = true;
+        vlg.childForceExpandHeight = false;
+        vlg.spacing = 10;
+        vlg.padding = new RectOffset(14, 14, 12, 12);
+
+        GameObject titleGO = new GameObject("Title", typeof(Text));
+        titleGO.transform.SetParent(controlPanel.transform, false);
+        Text title = titleGO.GetComponent<Text>();
+        title.text = "BUCKET ANGLES";
+        title.fontSize = 20;
+        title.fontStyle = FontStyle.Bold;
+        title.alignment = TextAnchor.MiddleLeft;
+        title.color = new Color(0.7f, 0.75f, 0.85f, 0.95f);
+        title.font = uiFont;
+
+        LayoutElement titleLE = titleGO.AddComponent<LayoutElement>();
+        titleLE.preferredHeight = 28;
+
+        thetaSlider = AddAngleSlider(controlPanel.transform, "Theta", ThetaMin, ThetaMax, rope != null ? rope.startTheta : 20f, value =>
+        {
+            if (rope != null) rope.SetThetaPhiDegrees(value, phiSlider != null ? phiSlider.value : rope.startPhi);
+        }, out thetaSliderValue);
+
+        phiSlider = AddAngleSlider(controlPanel.transform, "Phi", PhiMin, PhiMax, rope != null ? rope.startPhi : 0f, value =>
+        {
+            if (rope != null) rope.SetThetaPhiDegrees(thetaSlider != null ? thetaSlider.value : rope.startTheta, value);
+        }, out phiSliderValue);
+    }
+
+    Slider AddAngleSlider(Transform parent, string label, float min, float max, float initialValue, System.Action<float> onChanged, out Text valueText)
+    {
+        Text valueTextLocal = null;
+
+        GameObject row = new GameObject(label + "Row", typeof(VerticalLayoutGroup));
+        row.transform.SetParent(parent, false);
+
+        VerticalLayoutGroup vlg = row.GetComponent<VerticalLayoutGroup>();
+        vlg.childAlignment = TextAnchor.UpperLeft;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = false;
+        vlg.spacing = 4;
+
+        LayoutElement rowLE = row.AddComponent<LayoutElement>();
+        rowLE.preferredHeight = 72;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(row.transform, false);
+        Text labelText = labelGO.GetComponent<Text>();
+        labelText.text = label;
+        labelText.fontSize = 16;
+        labelText.fontStyle = FontStyle.Bold;
+        labelText.alignment = TextAnchor.MiddleLeft;
+        labelText.color = new Color(0.85f, 0.86f, 0.92f);
+        labelText.font = uiFont;
+
+        LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
+        labelLE.preferredHeight = 20;
+
+        GameObject sliderGO = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
+        sliderGO.transform.SetParent(row.transform, false);
+        Slider slider = sliderGO.GetComponent<Slider>();
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.wholeNumbers = false;
+
+        RectTransform srt = sliderGO.GetComponent<RectTransform>();
+        srt.sizeDelta = new Vector2(0, 24);
+
+        GameObject bgGO = new GameObject("Background", typeof(Image));
+        bgGO.transform.SetParent(sliderGO.transform, false);
+        Image bg = bgGO.GetComponent<Image>();
+        bg.color = new Color(0, 0, 0, 0.35f);
+        RectTransform bgRt = bgGO.GetComponent<RectTransform>();
+        bgRt.anchorMin = Vector2.zero;
+        bgRt.anchorMax = Vector2.one;
+        bgRt.offsetMin = Vector2.zero;
+        bgRt.offsetMax = Vector2.zero;
+
+        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(sliderGO.transform, false);
+        RectTransform fillAreaRt = fillArea.GetComponent<RectTransform>();
+        fillAreaRt.anchorMin = new Vector2(0, 0.25f);
+        fillAreaRt.anchorMax = new Vector2(1, 0.75f);
+        fillAreaRt.offsetMin = new Vector2(10, 0);
+        fillAreaRt.offsetMax = new Vector2(-10, 0);
+
+        GameObject fillGO = new GameObject("Fill", typeof(Image));
+        fillGO.transform.SetParent(fillArea.transform, false);
+        Image fillImg = fillGO.GetComponent<Image>();
+        fillImg.color = new Color(0.22f, 0.56f, 0.95f);
+        RectTransform fillRt = fillGO.GetComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = Vector2.one;
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+
+        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(sliderGO.transform, false);
+        RectTransform handleAreaRt = handleArea.GetComponent<RectTransform>();
+        handleAreaRt.anchorMin = Vector2.zero;
+        handleAreaRt.anchorMax = Vector2.one;
+        handleAreaRt.offsetMin = new Vector2(10, 0);
+        handleAreaRt.offsetMax = new Vector2(-10, 0);
+
+        GameObject handleGO = new GameObject("Handle", typeof(Image));
+        handleGO.transform.SetParent(handleArea.transform, false);
+        Image handleImg = handleGO.GetComponent<Image>();
+        handleImg.color = Color.white;
+        RectTransform handleRt = handleGO.GetComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(16, 16);
+
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handleImg;
+        slider.direction = Slider.Direction.LeftToRight;
+
+        GameObject valueGO = new GameObject("Value", typeof(Text));
+        valueGO.transform.SetParent(row.transform, false);
+        valueTextLocal = valueGO.GetComponent<Text>();
+        valueTextLocal.fontSize = 14;
+        valueTextLocal.alignment = TextAnchor.MiddleRight;
+        valueTextLocal.color = new Color(0.85f, 0.86f, 0.92f);
+        valueTextLocal.font = uiFont;
+
+        valueText = valueTextLocal;
+
+        LayoutElement valueLE = valueGO.AddComponent<LayoutElement>();
+        valueLE.preferredHeight = 18;
+
+        slider.onValueChanged.AddListener(v =>
+        {
+            valueTextLocal.text = string.Format("{0:F1}\u00B0", v);
+            if (onChanged != null)
+                onChanged(v);
+        });
+
+        slider.SetValueWithoutNotify(initialValue);
+        valueTextLocal.text = string.Format("{0:F1}\u00B0", initialValue);
+
+        return slider;
+    }
+
+    void SyncAngleControlsFromRope()
+    {
+        if (rope == null)
+            return;
+
+        if (thetaSlider != null)
+        {
+            thetaSlider.SetValueWithoutNotify(rope.startTheta);
+            if (thetaSliderValue != null)
+                thetaSliderValue.text = string.Format("{0:F1}\u00B0", rope.startTheta);
+        }
+
+        if (phiSlider != null)
+        {
+            phiSlider.SetValueWithoutNotify(rope.startPhi);
+            if (phiSliderValue != null)
+                phiSliderValue.text = string.Format("{0:F1}\u00B0", rope.startPhi);
+        }
+    }
+
     void AddSeparator()
     {
         GameObject sep = new GameObject("Separator", typeof(Image));
@@ -262,7 +454,7 @@ public class UIManager : MonoBehaviour
         labelText.text = label;
         labelText.fontSize = 18;
         labelText.alignment = TextAnchor.MiddleLeft;
-        labelText.color = new Color(0.65f, 0.70f, 0.80f);
+        labelText.color = Color.black;
         labelText.font = uiFont;
 
         LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
@@ -277,7 +469,7 @@ public class UIManager : MonoBehaviour
         valText.fontSize = 20;
         valText.fontStyle = FontStyle.Bold;
         valText.alignment = TextAnchor.MiddleRight;
-        valText.color = new Color(0.95f, 0.95f, 0.98f);
+        valText.color = Color.black;
         valText.font = uiFont;
 
         LayoutElement valLE = valGO.AddComponent<LayoutElement>();

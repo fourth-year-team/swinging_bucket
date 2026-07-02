@@ -107,12 +107,7 @@ public class Rope : MonoBehaviour
         if (bucketBody == null && bucketEnd != null)
             bucketBody = bucketEnd.gameObject.AddComponent<BucketBody>();
 
-        bucketBody.position = currentPos[segmentCount - 1];
-        bucketBody.emptyMass = bucketMass;
-        bucketBody.paintMass = paintMass;
-        bucketBody.mass = bucketMass + paintMass;
-        bucketBody.theta = theta;
-        bucketBody.phi = phi;
+        ApplyPoseFromAngles(true);
 
         if (angularMotion)
         {
@@ -151,6 +146,52 @@ public class Rope : MonoBehaviour
 
         BuildTriangles();
         BuildUVs();
+    }
+
+    public void SetThetaPhiDegrees(float thetaDegrees, float phiDegrees)
+    {
+        startTheta = thetaDegrees;
+        startPhi = phiDegrees;
+        theta = thetaDegrees * Mathf.Deg2Rad;
+        phi = phiDegrees * Mathf.Deg2Rad;
+
+        if (anchor == null || bucketBody == null || currentPos == null || previousPos == null)
+            return;
+
+        ApplyPoseFromAngles(true);
+    }
+
+    void ApplyPoseFromAngles(bool resetVelocities)
+    {
+        if (anchor == null || bucketBody == null || currentPos == null || previousPos == null)
+            return;
+
+        Vector3 bucketTarget = GetBucketTargetFromAngles(theta, phi);
+        Vector3 dir = (bucketTarget - anchor.position).normalized;
+
+        for (int i = 0; i < segmentCount; i++)
+        {
+            Vector3 pos = anchor.position + dir * segmentLength * i;
+            currentPos[i] = pos;
+            previousPos[i] = resetVelocities ? pos : previousPos[i];
+        }
+
+        bucketBody.transform.position = bucketTarget;
+        bucketBody.position = bucketTarget;
+        bucketBody.previousPosition = resetVelocities ? bucketTarget : bucketBody.previousPosition;
+        bucketBody.emptyMass = bucketMass;
+        bucketBody.paintMass = paintMass;
+        bucketBody.mass = bucketMass + paintMass;
+        bucketBody.theta = theta;
+        bucketBody.phi = phi;
+    }
+
+    Vector3 GetBucketTargetFromAngles(float thetaRadians, float phiRadians)
+    {
+        return anchor.position + new Vector3(
+            ropeLength * Mathf.Sin(thetaRadians) * Mathf.Cos(phiRadians),
+            -ropeLength * Mathf.Cos(thetaRadians),
+            ropeLength * Mathf.Sin(thetaRadians) * Mathf.Sin(phiRadians));
     }
 
     void FixedUpdate()

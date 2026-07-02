@@ -28,6 +28,7 @@ Shader "Custom/ParticleBillboard"
 
             StructuredBuffer<Particle> _ParticleBuffer;
             float _ParticleSize;
+            float _RestDensity;
             float4 _ColorLow;
             float4 _ColorHigh;
 
@@ -84,7 +85,8 @@ Shader "Custom/ParticleBillboard"
                 float3 lightDir = normalize(float3(0.3, 1.0, 0.5));
                 float diffuse = 0.8; // Flat matte
 
-                float4 baseColor = lerp(_ColorLow, _ColorHigh, saturate(i.density / 800.0));
+                float density01 = saturate((i.density - _RestDensity * 0.6) / max(_RestDensity * 0.8, 1.0));
+                float4 baseColor = lerp(_ColorLow, _ColorHigh, density01);
                 
                 return float4(baseColor.rgb, alpha);
             }

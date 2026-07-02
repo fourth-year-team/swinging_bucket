@@ -19,6 +19,8 @@ public class BucketBody : MonoBehaviour
     [HideInInspector] public Vector3 linearVelocity;
     [HideInInspector] public Vector3 angularVelocity;
     [HideInInspector] public Matrix4x4 prevWorldToLocalMatrix;
+    [HideInInspector] public Matrix4x4 initialLocalToWorldMatrix;
+    [HideInInspector] public Matrix4x4 initialWorldToLocalMatrix;
 
     // Physics simulation state (used by Rope)
     [HideInInspector] public Vector3 position;
@@ -37,6 +39,8 @@ public class BucketBody : MonoBehaviour
         prevPos = transform.position;
         prevRot = transform.rotation;
         prevWorldToLocalMatrix = transform.worldToLocalMatrix;
+        initialLocalToWorldMatrix = transform.localToWorldMatrix;
+        initialWorldToLocalMatrix = transform.worldToLocalMatrix;
     }
 
     void FixedUpdate()

@@ -32,7 +32,7 @@ Material:
     - _SpecularIntensity: 0.8
     - _SpecularPower: 32
     m_Colors:
-    - _ColorHigh: {r: 0.21000001, g: 0.48299998, b: 0.217, a: 1}
-    - _ColorLow: {r: 0.545, g: 0.7985, b: 0.5515, a: 1}
+    - _ColorHigh: {r: 0.637, g: 0.21000001, b: 0.168, a: 1}
+    - _ColorLow: {r: 0.9415, g: 0.545, b: 0.506, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
