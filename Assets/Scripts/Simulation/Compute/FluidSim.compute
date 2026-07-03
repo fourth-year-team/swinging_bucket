@@ -22,6 +22,7 @@ RWStructuredBuffer<float3> Positions;
 RWStructuredBuffer<float3> PredictedPositions;
 RWStructuredBuffer<float3> Velocities;
 RWStructuredBuffer<float2> Densities; // Density, Near Density
+RWStructuredBuffer<uint> EscapedThroughHole; // 1 = particle has fallen through bucket hole, skip future bucket collision
 
 // Spatial hashing
 RWStructuredBuffer<uint> SpatialKeys;
@@ -67,6 +68,19 @@ int _HoleEnabled;
 // World-space fallback bounds (catch particles that escape the bucket)
 float3 _BoundsMin;
 float3 _BoundsMax;
+
+// Drawing board settings
+RWTexture2D<float4> _BoardTexture;
+float3 _BoardCenter;
+float  _BoardTopY;
+float3 _BoardHalfSize;
+int    _BoardTexRes;
+int    _HasBoard;
+float  _BoardFriction;
+float  _BoardStickiness;
+float  _BoardAbsorption;
+float4 _PaintColor;
+float  _ParticleRadius;
 
 // Volume texture settings
 RWTexture3D<float> DensityMap;
@@ -114,68 +128,112 @@ float Remap01(float val, float minVal, float maxVal)
     return saturate((val - minVal) / (maxVal - minVal));
 }
 
-void ResolveCollisions(inout float3 pos, inout float3 vel, float collisionDamping)
+void CollideBoardAndPaint(inout float3 pos, inout float3 vel)
 {
-    // Transform to bucket local space
-    float3 posLocal = mul(_BucketWorldToLocal, float4(pos, 1)).xyz;
+    if (_HasBoard == 0) return;
+    float minX = _BoardCenter.x - _BoardHalfSize.x;
+    float maxX = _BoardCenter.x + _BoardHalfSize.x;
+    float minZ = _BoardCenter.z - _BoardHalfSize.z;
+    float maxZ = _BoardCenter.z + _BoardHalfSize.z;
 
-    // Compute bucket velocity at this world position (for relative velocity)
-    float3 bucketCenter = mul(_BucketLocalToWorld, float4(0, 0, 0, 1)).xyz;
-    float3 relWorld = pos - bucketCenter;
-    float3 bucketVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, relWorld);
-    float3 relVel = vel - bucketVel;
+    if (pos.x < minX || pos.x > maxX || pos.z < minZ || pos.z > maxZ) return;
 
-    // Frustum parameters
-    float h = max(_BucketTopY - _BucketBottomY, 1e-4f);
-    float t = saturate((posLocal.y - _BucketBottomY) / h);
-    float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, t);
+    float dist = pos.y - _BoardTopY;
 
-    float radial = length(posLocal.xz);
-
-    // Hole check
-    float holePassRadius = max(_HoleRadius, 0.0f);
-    bool holeActive = (_HoleEnabled == 1) && (holePassRadius > 0.0f);
-    bool insideHole = holeActive && (radial < holePassRadius);
-
-    // Wall collision (frustum sides)
-    if (radial > bucketRadius)
+    if (dist < _ParticleRadius && dist > -0.5)
     {
-        float2 dir = posLocal.xz / max(radial, 1e-6f);
-        posLocal.xz = dir * bucketRadius;
-        float slope = (_BucketTopRadius - _BucketBottomRadius) / h;
-        float3 nLocal = normalize(float3(-dir.x, slope, -dir.y));
-        float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, nLocal));
-        float vn = dot(relVel, nWorld);
-        if (vn < 0) relVel -= vn * nWorld;
-        relVel *= collisionDamping;
-    }
-
-    // Bottom collision (allow fall-through at hole)
-    if (posLocal.y < _BucketBottomY)
-    {
-        if (!insideHole)
+        if (length(vel) > 0.05f)
         {
-            posLocal.y = _BucketBottomY;
-            float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, float3(0, 1, 0)));
-            float vn = dot(relVel, nWorld);
-            if (vn < 0) relVel -= vn * nWorld;
-            relVel *= collisionDamping;
+            float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
+            float v = (pos.z - minZ) / (_BoardHalfSize.z * 2.0);
+            int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
+            int splatRadius = 3;
+            for (int dx = -splatRadius; dx <= splatRadius; dx++)
+            {
+                for (int dz = -splatRadius; dz <= splatRadius; dz++)
+                {
+                    int2 p = center + int2(dx, dz);
+                    if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
+                    {
+                        float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
+                        if (falloff > 0.0)
+                            _BoardTexture[p] = lerp(_BoardTexture[p], _PaintColor, saturate(falloff * 0.8));
+                    }
+                }
+            }
+        }
+        pos.y = _BoardTopY + _ParticleRadius;
+        if (vel.y < 0.0f) vel.y = -vel.y * (1.0f - _BoardAbsorption);
+        vel.x *= _BoardFriction; vel.z *= _BoardFriction;
+        if (length(vel) < (1.0f - _BoardStickiness) * 2.0f) vel = float3(0, 0, 0);
+    }
+}
+
+void ResolveCollisions(inout float3 pos, inout float3 vel, float collisionDamping, inout uint escapedThroughHole)
+{
+    // Drawing board collision (applies to all particles, including escaped)
+    CollideBoardAndPaint(pos, vel);
+
+    // If already escaped through the hole, skip bucket collision entirely
+    if (escapedThroughHole == 0)
+    {
+        // Transform to bucket local space
+        float3 posLocal = mul(_BucketWorldToLocal, float4(pos, 1)).xyz;
+
+        // Compute bucket velocity at this world position (for relative velocity)
+        float3 bucketCenter = mul(_BucketLocalToWorld, float4(0, 0, 0, 1)).xyz;
+        float3 relWorld = pos - bucketCenter;
+        float3 bucketVel = _BucketLinearVelocity + cross(_BucketAngularVelocity, relWorld);
+        float3 relVel = vel - bucketVel;
+
+        // Frustum parameters
+        float h = max(_BucketTopY - _BucketBottomY, 1e-4f);
+        float t = saturate((posLocal.y - _BucketBottomY) / h);
+        float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, t);
+
+        float radial = length(posLocal.xz);
+
+        // Hole check
+        float holePassRadius = max(_HoleRadius, 0.0f);
+        bool holeActive = (_HoleEnabled == 1) && (holePassRadius > 0.0f);
+        bool insideHole = holeActive && (radial < holePassRadius);
+
+        // Early escape: particle falling through the hole — mark as escaped and skip bucket collision
+        if (holeActive && insideHole && posLocal.y < _BucketBottomY)
+        {
+            escapedThroughHole = 1;
+        }
+        else
+        {
+            // Wall collision (frustum sides)
+            if (radial > bucketRadius && posLocal.y < _BucketTopY)
+            {
+                float2 dir = posLocal.xz / max(radial, 1e-6f);
+                posLocal.xz = dir * bucketRadius;
+                float slope = (_BucketTopRadius - _BucketBottomRadius) / h;
+                float3 nLocal = normalize(float3(-dir.x, slope, -dir.y));
+                float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, nLocal));
+                float vn = dot(relVel, nWorld);
+                if (vn < 0) relVel -= vn * nWorld;
+                relVel *= collisionDamping;
+            }
+
+            // Bottom collision (clamp non-escaped particles above the hole)
+            // Escaped-through-hole case is already handled above
+            if (posLocal.y < _BucketBottomY)
+            {
+                posLocal.y = _BucketBottomY;
+                float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, float3(0, 1, 0)));
+                float vn = dot(relVel, nWorld);
+                if (vn < 0) relVel -= vn * nWorld;
+                relVel *= collisionDamping;
+            }
+
+            // Transform back to world space
+            pos = mul(_BucketLocalToWorld, float4(posLocal, 1)).xyz;
+            vel = relVel + bucketVel;
         }
     }
-
-    // Top collision
-    // if (posLocal.y > _BucketTopY)
-    // {
-    //     posLocal.y = _BucketTopY;
-    //     float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, float3(0, -1, 0)));
-    //     float vn = dot(relVel, nWorld);
-    //     if (vn > 0) relVel -= vn * nWorld;
-    //     relVel *= collisionDamping;
-    // }
-
-    // Transform back to world space
-    pos = mul(_BucketLocalToWorld, float4(posLocal, 1)).xyz;
-    vel = relVel + bucketVel;
 
     // World-space fallback bounds (catch particles that escape the bucket)
     if (pos.y < _BoundsMin.y) { pos.y = _BoundsMin.y; vel.y = abs(vel.y) * collisionDamping; }
@@ -217,6 +275,7 @@ void UpdateSpatialHash(uint3 id : SV_DispatchThreadID)
 RWStructuredBuffer<float3> SortTarget_Positions;
 RWStructuredBuffer<float3> SortTarget_PredictedPositions;
 RWStructuredBuffer<float3> SortTarget_Velocities;
+RWStructuredBuffer<uint> SortTarget_EscapedThroughHole;
 
 [numthreads(ThreadGroupSize, 1, 1)]
 void Reorder(uint3 id : SV_DispatchThreadID)
@@ -227,6 +286,7 @@ void Reorder(uint3 id : SV_DispatchThreadID)
     SortTarget_Positions[id.x] = Positions[sortedIndex];
     SortTarget_PredictedPositions[id.x] = PredictedPositions[sortedIndex];
     SortTarget_Velocities[id.x] = Velocities[sortedIndex];
+    SortTarget_EscapedThroughHole[id.x] = EscapedThroughHole[sortedIndex];
 }
 
 [numthreads(ThreadGroupSize, 1, 1)]
@@ -238,6 +298,7 @@ void ReorderCopyBack(uint3 id : SV_DispatchThreadID)
     Positions[id.x] = SortTarget_Positions[id.x];
     PredictedPositions[id.x] = SortTarget_PredictedPositions[id.x];
     Velocities[id.x] = SortTarget_Velocities[id.x];
+    EscapedThroughHole[id.x] = SortTarget_EscapedThroughHole[id.x];
 }
 
 float2 CalculateDensitiesAtPoint(float3 pos)
@@ -524,7 +585,9 @@ void UpdatePositions(uint3 id : SV_DispatchThreadID)
     float3 pos = Positions[id.x];
     pos += vel * deltaTime;
 
-    ResolveCollisions(pos, vel, collisionDamping);
+    uint escaped = EscapedThroughHole[id.x];
+    ResolveCollisions(pos, vel, collisionDamping, escaped);
+    EscapedThroughHole[id.x] = escaped;
 
     // Write results
     Positions[id.x] = pos;
@@ -631,7 +694,8 @@ void UpdateWhiteParticles(uint3 id : SV_DispatchThreadID)
     particle.position += particle.velocity * deltaTime;
 
     const float collisionDampening = 0.1;
-    ResolveCollisions(particle.position, particle.velocity, collisionDampening);
+    uint whiteEscaped = 0;
+    ResolveCollisions(particle.position, particle.velocity, collisionDampening, whiteEscaped);
     WhiteParticles[id.x] = particle;
 
     // Compact the surviving particles into temporary buffer

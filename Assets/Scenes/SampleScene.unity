@@ -281,7 +281,7 @@ MonoBehaviour:
   topY: 5.25
   bottomRadius: 1.75
   topRadius: 1.95
-  holeEnabled: 1
+  holeEnabled: 0
   holeRadius: 0.2
   emptyMass: 10
   paintLeakRate: 1
@@ -1809,7 +1809,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 15226ddaea3a4b14c9ff177be0a0e603, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Rope
-  startTheta: 20
+  startTheta: 0
   startPhi: 0
   inital_offset: {x: 10, y: 0, z: 0}
   angularMotion: 0
@@ -2880,7 +2880,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f99a384512b94654fbeb7c06c43f81ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.Spawner3D
-  particleSpawnDensity: 100
+  particleSpawnDensity: 60
   initialVel:
     x: 0
     y: 0
@@ -2891,7 +2891,7 @@ MonoBehaviour:
   - centre: {x: 3.92, y: -1.94, z: 0}
     size: 4
     debugDisplayCol: {r: 1, g: 0, b: 0, a: 0}
-  debug_num_particles: 5832
+  debug_num_particles: 3375
   debug_spawn_volume: 64
 --- !u!23 &1724698703
 MeshRenderer:

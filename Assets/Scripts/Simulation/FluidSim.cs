@@ -44,6 +44,7 @@ namespace Seb.Fluid.Simulation
 		[Header("References")] public ComputeShader compute;
 		public Spawner3D spawner;
 		public BucketBody bucketBody;
+		public DrawingBoard drawingBoard;
 
 		[Header("World Bounds (fallback when particles escape bucket)")]
 		public Vector3 boundsMin = new Vector3(-10, -1, -10);
@@ -65,6 +66,8 @@ namespace Seb.Fluid.Simulation
 		ComputeBuffer sortTarget_positionBuffer;
 		ComputeBuffer sortTarget_velocityBuffer;
 		ComputeBuffer sortTarget_predictedPositionsBuffer;
+		ComputeBuffer escapedThroughHoleBuffer;
+		ComputeBuffer sortTarget_escapedThroughHoleBuffer;
 
 		// Kernel IDs
 		const int externalForcesKernel = 0;
@@ -118,6 +121,8 @@ namespace Seb.Fluid.Simulation
 			sortTarget_positionBuffer = CreateStructuredBuffer<float3>(numParticles);
 			sortTarget_predictedPositionsBuffer = CreateStructuredBuffer<float3>(numParticles);
 			sortTarget_velocityBuffer = CreateStructuredBuffer<float3>(numParticles);
+			escapedThroughHoleBuffer = CreateStructuredBuffer<uint>(numParticles);
+			sortTarget_escapedThroughHoleBuffer = CreateStructuredBuffer<uint>(numParticles);
 
 			bufferNameLookup = new Dictionary<ComputeBuffer, string>
 			{
@@ -131,6 +136,8 @@ namespace Seb.Fluid.Simulation
 				{ sortTarget_positionBuffer, "SortTarget_Positions" },
 				{ sortTarget_predictedPositionsBuffer, "SortTarget_PredictedPositions" },
 				{ sortTarget_velocityBuffer, "SortTarget_Velocities" },
+				{ escapedThroughHoleBuffer, "EscapedThroughHole" },
+				{ sortTarget_escapedThroughHoleBuffer, "SortTarget_EscapedThroughHole" },
 				{ foamCountBuffer, "WhiteParticleCounters" },
 				{ foamBuffer, "WhiteParticles" },
 				{ foamSortTargetBuffer, "WhiteParticlesCompacted" },
@@ -166,7 +173,9 @@ namespace Seb.Fluid.Simulation
 				sortTarget_predictedPositionsBuffer,
 				velocityBuffer,
 				sortTarget_velocityBuffer,
-				spatialHash.SpatialIndices
+				spatialHash.SpatialIndices,
+				escapedThroughHoleBuffer,
+				sortTarget_escapedThroughHoleBuffer
 			});
 
 			// Reorder copyback kernel
@@ -178,7 +187,9 @@ namespace Seb.Fluid.Simulation
 				sortTarget_predictedPositionsBuffer,
 				velocityBuffer,
 				sortTarget_velocityBuffer,
-				spatialHash.SpatialIndices
+				spatialHash.SpatialIndices,
+				escapedThroughHoleBuffer,
+				sortTarget_escapedThroughHoleBuffer
 			});
 
 			// Density kernel
@@ -217,8 +228,15 @@ namespace Seb.Fluid.Simulation
 			SetBuffers(compute, updatePositionsKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				positionBuffer,
-				velocityBuffer
+				velocityBuffer,
+				escapedThroughHoleBuffer
 			});
+
+			// Bind drawing board texture (needed by ResolveCollisions called from UpdatePositions kernel)
+			if (drawingBoard != null && drawingBoard.boardTexture != null)
+			{
+				compute.SetTexture(updatePositionsKernel, "_BoardTexture", drawingBoard.boardTexture);
+			}
 
 			// Render to 3d tex kernel
 			SetBuffers(compute, renderKernel, bufferNameLookup, new ComputeBuffer[]
@@ -409,6 +427,42 @@ namespace Seb.Fluid.Simulation
 				compute.SetFloat("_HoleRadius", bucketBody.holeEnabled ? bucketBody.holeRadius * scale.x : 0);
 				compute.SetInt("_HoleEnabled", bucketBody.holeEnabled ? 1 : 0);
 			}
+
+			// Drawing board parameters
+			if (drawingBoard != null && drawingBoard.boardTexture != null)
+			{
+				compute.SetInt("_HasBoard", 1);
+				compute.SetFloat("_BoardTopY", drawingBoard.GetTopSurfaceY());
+				Vector2 half = drawingBoard.GetHalfSizeXZ();
+				compute.SetVector("_BoardCenter", drawingBoard.transform.position);
+				compute.SetVector("_BoardHalfSize", new Vector4(half.x, 0f, half.y, 0f));
+				compute.SetInt("_BoardTexRes", drawingBoard.textureResolution);
+
+				SurfaceMaterial mat = drawingBoard.GetComponent<SurfaceMaterial>();
+				if (mat != null)
+				{
+					compute.SetFloat("_BoardFriction", mat.friction);
+					compute.SetFloat("_BoardStickiness", mat.stickiness);
+					compute.SetFloat("_BoardAbsorption", mat.absorption);
+				}
+				else
+				{
+					compute.SetFloat("_BoardFriction", 0.55f);
+					compute.SetFloat("_BoardStickiness", 0.92f);
+					compute.SetFloat("_BoardAbsorption", 0.95f);
+				}
+
+				// Use selected paint color from GameManager, or fall back to white
+				Color paintCol = (GameManager.Instance != null) ? GameManager.Instance.selectedColor : Color.white;
+				compute.SetVector("_PaintColor", paintCol);
+			}
+			else
+			{
+				compute.SetInt("_HasBoard", 0);
+			}
+
+			// Particle radius (derive from smoothing radius)
+			compute.SetFloat("_ParticleRadius", smoothingRadius * 0.5f);
 		}
 
 		void SetInitialBufferData(Spawner3D.SpawnData spawnData)
@@ -421,6 +475,7 @@ namespace Seb.Fluid.Simulation
 
 			debugBuffer.SetData(new float3[debugBuffer.count]);
 			foamCountBuffer.SetData(new uint[foamCountBuffer.count]);
+			escapedThroughHoleBuffer.SetData(new uint[escapedThroughHoleBuffer.count]);
 			simTimer = 0;
 		}
 
@@ -441,6 +496,8 @@ namespace Seb.Fluid.Simulation
 			{
 				pauseNextFrame = true;
 				SetInitialBufferData(spawnData);
+				if (drawingBoard != null)
+					drawingBoard.ClearBoard();
 				// Run single frame of sim with deltaTime = 0 to initialize density texture
 				// (so that display can work even if paused at start)
 				if (renderToTex3D)
