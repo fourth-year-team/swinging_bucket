@@ -1,14 +1,14 @@
 #pragma kernel ExternalForces
 #pragma kernel UpdateSpatialHash
 #pragma kernel Reorder
-#pragma kernel ReorderCopyBack;
+#pragma kernel ReorderCopyBack
 #pragma kernel CalculateDensities
 #pragma kernel CalculatePressureForce
 #pragma kernel CalculateViscosity
 #pragma kernel UpdatePositions
 #pragma kernel UpdateDensityTexture
 #pragma kernel UpdateWhiteParticles
-#pragma kernel WhiteParticlePrepareNextFrame;
+#pragma kernel WhiteParticlePrepareNextFrame
 
 // Includes
 #include "./FluidMaths3D.hlsl"
@@ -71,6 +71,7 @@ float3 _BoundsMax;
 
 // Drawing board settings
 RWTexture2D<float4> _BoardTexture;
+RWTexture2D<float> _BoardPaintAmountTexture;
 float3 _BoardCenter;
 float  _BoardTopY;
 float3 _BoardHalfSize;
@@ -128,7 +129,53 @@ float Remap01(float val, float minVal, float maxVal)
     return saturate((val - minVal) / (maxVal - minVal));
 }
 
-void CollideBoardAndPaint(inout float3 pos, inout float3 vel)
+void PaintBoard(float3 pos, float3 vel, float minX, float minZ, float depositScale)
+{
+    float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
+    float v = (pos.z - minZ) / (_BoardHalfSize.z * 2.0);
+    int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
+    float impactSpeed = max(-vel.y, 0.0f);
+    float tangentSpeed = length(vel.xz);
+    int splatRadius = clamp((int)ceil(2.0f + impactSpeed * 0.55f + tangentSpeed * 0.2f), 3, 9);
+
+    float2 tangentDir = tangentSpeed > 0.001f ? normalize(vel.xz) : float2(1.0f, 0.0f);
+    float2 sideDir = float2(-tangentDir.y, tangentDir.x);
+    float stretch = saturate(tangentSpeed / max(impactSpeed + 0.001f, 0.001f)) * 0.45f;
+
+    for (int dx = -splatRadius; dx <= splatRadius; dx++)
+    {
+        for (int dz = -splatRadius; dz <= splatRadius; dz++)
+        {
+            int2 p = center + int2(dx, dz);
+            if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
+            {
+                float2 o = float2(dx, dz);
+                float along = dot(o, tangentDir) / (1.0f + stretch);
+                float across = dot(o, sideDir);
+                float radial = length(float2(along, across)) / max((float)splatRadius, 1.0f);
+                float falloff = saturate(1.0f - radial);
+                falloff = falloff * falloff * (3.0f - 2.0f * falloff);
+
+                float addAmount = saturate(falloff * depositScale * saturate((impactSpeed + tangentSpeed * 0.25f) * 0.18f)) * 0.35f;
+                if (addAmount > 0.0f)
+                {
+                    float amount = saturate(_BoardPaintAmountTexture[p] + addAmount);
+                    _BoardPaintAmountTexture[p] = amount;
+
+                    float3 paintCol = saturate(_PaintColor.rgb * lerp(1.0f, 0.55f, amount));
+                    _BoardTexture[p] = float4(lerp(float3(1.0f, 1.0f, 1.0f), paintCol, amount), 1.0f);
+                }
+            }
+        }
+    }
+}
+
+float3 RetiredParticlePosition(uint id)
+{
+    return float3(_BoundsMax.x + 1000.0f + (id % 64), _BoundsMin.y - 1000.0f, _BoundsMax.z + 1000.0f + (id / 64));
+}
+
+void DepositParticleOnBoard(inout float3 pos, inout float3 vel, inout uint escapedThroughHole)
 {
     if (_HasBoard == 0) return;
     float minX = _BoardCenter.x - _BoardHalfSize.x;
@@ -137,42 +184,38 @@ void CollideBoardAndPaint(inout float3 pos, inout float3 vel)
     float maxZ = _BoardCenter.z + _BoardHalfSize.z;
 
     if (pos.x < minX || pos.x > maxX || pos.z < minZ || pos.z > maxZ) return;
+    if (pos.y > _BoardTopY + _ParticleRadius || pos.y < _BoardTopY - 0.5f || vel.y >= 0.0f) return;
 
-    float dist = pos.y - _BoardTopY;
+    float stickiness = saturate(_BoardStickiness);
+    float absorption = saturate(_BoardAbsorption);
+    float depositScale = absorption * lerp(0.25f, 1.0f, stickiness);
 
-    if (dist < _ParticleRadius && dist > -0.5)
+    if (length(vel) > 0.05f)
+        PaintBoard(pos, vel, minX, minZ, depositScale);
+
+    pos.y = _BoardTopY + _ParticleRadius;
+
+    if (stickiness < 0.5f)
     {
-        if (length(vel) > 0.05f)
-        {
-            float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
-            float v = (pos.z - minZ) / (_BoardHalfSize.z * 2.0);
-            int2 center = int2(u * _BoardTexRes, v * _BoardTexRes);
-            int splatRadius = 3;
-            for (int dx = -splatRadius; dx <= splatRadius; dx++)
-            {
-                for (int dz = -splatRadius; dz <= splatRadius; dz++)
-                {
-                    int2 p = center + int2(dx, dz);
-                    if (p.x >= 0 && p.x < _BoardTexRes && p.y >= 0 && p.y < _BoardTexRes)
-                    {
-                        float falloff = 1.0 - length(float2(dx, dz)) / (float)(splatRadius + 1);
-                        if (falloff > 0.0)
-                            _BoardTexture[p] = lerp(_BoardTexture[p], _PaintColor, saturate(falloff * 0.8));
-                    }
-                }
-            }
-        }
-        pos.y = _BoardTopY + _ParticleRadius;
-        if (vel.y < 0.0f) vel.y = -vel.y * (1.0f - _BoardAbsorption);
-        vel.x *= _BoardFriction; vel.z *= _BoardFriction;
-        if (length(vel) < (1.0f - _BoardStickiness) * 2.0f) vel = float3(0, 0, 0);
+        float bounce = (1.0f - absorption) * (1.0f - stickiness);
+        vel.y = -vel.y * bounce;
+        vel.xz *= saturate(_BoardFriction + stickiness * 0.25f);
+        return;
     }
+
+    // Reuse the escape flag to retire particles that have become board paint.
+    escapedThroughHole = 2;
 }
 
 void ResolveCollisions(inout float3 pos, inout float3 vel, float collisionDamping, inout uint escapedThroughHole)
 {
-    // Drawing board collision (applies to all particles, including escaped)
-    CollideBoardAndPaint(pos, vel);
+    if (escapedThroughHole == 2)
+        return;
+
+    DepositParticleOnBoard(pos, vel, escapedThroughHole);
+
+    if (escapedThroughHole == 2)
+        return;
 
     // If already escaped through the hole, skip bucket collision entirely
     if (escapedThroughHole == 0)
@@ -250,6 +293,15 @@ void ExternalForces(uint3 id : SV_DispatchThreadID)
     if (id.x >= numParticles)
         return;
 
+    if (EscapedThroughHole[id.x] == 2)
+    {
+        Velocities[id.x] = 0;
+        float3 retiredPos = RetiredParticlePosition(id.x);
+        Positions[id.x] = retiredPos;
+        PredictedPositions[id.x] = retiredPos;
+        return;
+    }
+
     // External forces (gravity)
     Velocities[id.x] += float3(0, gravity, 0) * deltaTime;
 
@@ -262,6 +314,13 @@ void UpdateSpatialHash(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= numParticles)
         return;
+
+    if (EscapedThroughHole[id.x] == 2)
+    {
+        int3 cell = GetCell3D(Positions[id.x], smoothingRadius);
+        SpatialKeys[id.x] = KeyFromHash(HashCell3D(cell), numParticles);
+        return;
+    }
 
     uint index = id.x;
     int3 cell = GetCell3D(PredictedPositions[index], smoothingRadius);
@@ -349,6 +408,12 @@ void CalculateDensities(uint3 id : SV_DispatchThreadID)
     if (id.x >= numParticles)
         return;
 
+    if (EscapedThroughHole[id.x] == 2)
+    {
+        Densities[id.x] = 0;
+        return;
+    }
+
     float3 pos = PredictedPositions[id.x];
     float2 densities = CalculateDensitiesAtPoint(pos);
 
@@ -385,6 +450,9 @@ float3 CalculateOrthonormal(float3 dir)
 void CalculatePressureForce(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= numParticles)
+        return;
+
+    if (EscapedThroughHole[id.x] == 2)
         return;
 
     // Calculate pressure
@@ -529,6 +597,9 @@ void CalculateViscosity(uint3 id : SV_DispatchThreadID)
     if (id.x >= numParticles)
         return;
 
+    if (EscapedThroughHole[id.x] == 2)
+        return;
+
     float3 pos = PredictedPositions[id.x];
     int3 originCell = GetCell3D(pos, smoothingRadius);
     float sqrRadius = smoothingRadius * smoothingRadius;
@@ -580,6 +651,14 @@ void UpdatePositions(uint3 id : SV_DispatchThreadID)
 {
     if (id.x >= numParticles)
         return;
+
+    if (EscapedThroughHole[id.x] == 2)
+    {
+        Positions[id.x] = RetiredParticlePosition(id.x);
+        PredictedPositions[id.x] = Positions[id.x];
+        Velocities[id.x] = 0;
+        return;
+    }
 
     float3 vel = Velocities[id.x];
     float3 pos = Positions[id.x];

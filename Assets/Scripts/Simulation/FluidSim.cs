@@ -4,7 +4,6 @@ using Seb.GPUSorting;
 using Unity.Mathematics;
 using System.Collections.Generic;
 using Seb.Helpers;
-using static Seb.Helpers.ComputeHelper;
 
 namespace Seb.Fluid.Simulation
 {
@@ -70,17 +69,17 @@ namespace Seb.Fluid.Simulation
 		ComputeBuffer sortTarget_escapedThroughHoleBuffer;
 
 		// Kernel IDs
-		const int externalForcesKernel = 0;
-		const int spatialHashKernel = 1;
-		const int reorderKernel = 2;
-		const int reorderCopybackKernel = 3;
-		const int densityKernel = 4;
-		const int pressureKernel = 5;
-		const int viscosityKernel = 6;
-		const int updatePositionsKernel = 7;
-		const int renderKernel = 8;
-		const int foamUpdateKernel = 9;
-		const int foamReorderCopyBackKernel = 10;
+		int externalForcesKernel;
+		int spatialHashKernel;
+		int reorderKernel;
+		int reorderCopybackKernel;
+		int densityKernel;
+		int pressureKernel;
+		int viscosityKernel;
+		int updatePositionsKernel;
+		int renderKernel;
+		int foamUpdateKernel;
+		int foamReorderCopyBackKernel;
 
 		SpatialHash spatialHash;
 
@@ -106,23 +105,25 @@ namespace Seb.Fluid.Simulation
 			spawnData = spawner.GetSpawnData();
 			int numParticles = spawnData.points.Length;
 
+			CacheKernels();
+
 			spatialHash = new SpatialHash(numParticles);
 			
 			// Create buffers
-			positionBuffer = CreateStructuredBuffer<float3>(numParticles);
-			predictedPositionsBuffer = CreateStructuredBuffer<float3>(numParticles);
-			velocityBuffer = CreateStructuredBuffer<float3>(numParticles);
-			densityBuffer = CreateStructuredBuffer<float2>(numParticles);
-			foamBuffer = CreateStructuredBuffer<FoamParticle>(maxFoamParticleCount);
-			foamSortTargetBuffer = CreateStructuredBuffer<FoamParticle>(maxFoamParticleCount);
-			foamCountBuffer = CreateStructuredBuffer<uint>(4096);
-			debugBuffer = CreateStructuredBuffer<float3>(numParticles);
+			positionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			predictedPositionsBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			velocityBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			densityBuffer = ComputeHelper.CreateStructuredBuffer<float2>(numParticles);
+			foamBuffer = ComputeHelper.CreateStructuredBuffer<FoamParticle>(maxFoamParticleCount);
+			foamSortTargetBuffer = ComputeHelper.CreateStructuredBuffer<FoamParticle>(maxFoamParticleCount);
+			foamCountBuffer = ComputeHelper.CreateStructuredBuffer<uint>(4096);
+			debugBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
 
-			sortTarget_positionBuffer = CreateStructuredBuffer<float3>(numParticles);
-			sortTarget_predictedPositionsBuffer = CreateStructuredBuffer<float3>(numParticles);
-			sortTarget_velocityBuffer = CreateStructuredBuffer<float3>(numParticles);
-			escapedThroughHoleBuffer = CreateStructuredBuffer<uint>(numParticles);
-			sortTarget_escapedThroughHoleBuffer = CreateStructuredBuffer<uint>(numParticles);
+			sortTarget_positionBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			sortTarget_predictedPositionsBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			sortTarget_velocityBuffer = ComputeHelper.CreateStructuredBuffer<float3>(numParticles);
+			escapedThroughHoleBuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
+			sortTarget_escapedThroughHoleBuffer = ComputeHelper.CreateStructuredBuffer<uint>(numParticles);
 
 			bufferNameLookup = new Dictionary<ComputeBuffer, string>
 			{
@@ -148,24 +149,27 @@ namespace Seb.Fluid.Simulation
 			SetInitialBufferData(spawnData);
 
 			// External forces kernel
-			SetBuffers(compute, externalForcesKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, externalForcesKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				positionBuffer,
 				predictedPositionsBuffer,
-				velocityBuffer
+				velocityBuffer,
+				escapedThroughHoleBuffer
 			});
 
 			// Spatial hash kernel
-			SetBuffers(compute, spatialHashKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, spatialHashKernel, bufferNameLookup, new ComputeBuffer[]
 			{
+				positionBuffer,
 				spatialHash.SpatialKeys,
 				spatialHash.SpatialOffsets,
 				predictedPositionsBuffer,
-				spatialHash.SpatialIndices
+				spatialHash.SpatialIndices,
+				escapedThroughHoleBuffer
 			});
 
 			// Reorder kernel
-			SetBuffers(compute, reorderKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, reorderKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				positionBuffer,
 				sortTarget_positionBuffer,
@@ -179,7 +183,7 @@ namespace Seb.Fluid.Simulation
 			});
 
 			// Reorder copyback kernel
-			SetBuffers(compute, reorderCopybackKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, reorderCopybackKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				positionBuffer,
 				sortTarget_positionBuffer,
@@ -193,16 +197,17 @@ namespace Seb.Fluid.Simulation
 			});
 
 			// Density kernel
-			SetBuffers(compute, densityKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, densityKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				predictedPositionsBuffer,
 				densityBuffer,
 				spatialHash.SpatialKeys,
-				spatialHash.SpatialOffsets
+				spatialHash.SpatialOffsets,
+				escapedThroughHoleBuffer
 			});
 
 			// Pressure kernel
-			SetBuffers(compute, pressureKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, pressureKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				predictedPositionsBuffer,
 				densityBuffer,
@@ -211,24 +216,27 @@ namespace Seb.Fluid.Simulation
 				spatialHash.SpatialOffsets,
 				foamBuffer,
 				foamCountBuffer,
-				debugBuffer
+				debugBuffer,
+				escapedThroughHoleBuffer
 			});
 
 			// Viscosity kernel
-			SetBuffers(compute, viscosityKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, viscosityKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				predictedPositionsBuffer,
 				densityBuffer,
 				velocityBuffer,
 				spatialHash.SpatialKeys,
-				spatialHash.SpatialOffsets
+				spatialHash.SpatialOffsets,
+				escapedThroughHoleBuffer
 			});
 
 			// Update positions kernel
-			SetBuffers(compute, updatePositionsKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, updatePositionsKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				positionBuffer,
 				velocityBuffer,
+				predictedPositionsBuffer,
 				escapedThroughHoleBuffer
 			});
 
@@ -236,10 +244,14 @@ namespace Seb.Fluid.Simulation
 			if (drawingBoard != null && drawingBoard.boardTexture != null)
 			{
 				compute.SetTexture(updatePositionsKernel, "_BoardTexture", drawingBoard.boardTexture);
+				if (drawingBoard.paintAmountTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
+				}
 			}
 
 			// Render to 3d tex kernel
-			SetBuffers(compute, renderKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, renderKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				predictedPositionsBuffer,
 				densityBuffer,
@@ -248,7 +260,7 @@ namespace Seb.Fluid.Simulation
 			});
 
 			// Foam update kernel
-			SetBuffers(compute, foamUpdateKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, foamUpdateKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				foamBuffer,
 				foamCountBuffer,
@@ -263,7 +275,7 @@ namespace Seb.Fluid.Simulation
 
 
 			// Foam reorder copyback kernel
-			SetBuffers(compute, foamReorderCopyBackKernel, bufferNameLookup, new ComputeBuffer[]
+			ComputeHelper.SetBuffers(compute, foamReorderCopyBackKernel, bufferNameLookup, new ComputeBuffer[]
 			{
 				foamBuffer,
 				foamSortTargetBuffer,
@@ -283,6 +295,21 @@ namespace Seb.Fluid.Simulation
 			}
 
 			SimulationInitCompleted?.Invoke(this);
+		}
+
+		void CacheKernels()
+		{
+			externalForcesKernel = compute.FindKernel("ExternalForces");
+			spatialHashKernel = compute.FindKernel("UpdateSpatialHash");
+			reorderKernel = compute.FindKernel("Reorder");
+			reorderCopybackKernel = compute.FindKernel("ReorderCopyBack");
+			densityKernel = compute.FindKernel("CalculateDensities");
+			pressureKernel = compute.FindKernel("CalculatePressureForce");
+			viscosityKernel = compute.FindKernel("CalculateViscosity");
+			updatePositionsKernel = compute.FindKernel("UpdatePositions");
+			renderKernel = compute.FindKernel("UpdateDensityTexture");
+			foamUpdateKernel = compute.FindKernel("UpdateWhiteParticles");
+			foamReorderCopyBackKernel = compute.FindKernel("WhiteParticlePrepareNextFrame");
 		}
 
 		void Update()
@@ -319,8 +346,8 @@ namespace Seb.Fluid.Simulation
 			// Foam and spray particles
 			if (foamActive)
 			{
-				Dispatch(compute, maxFoamParticleCount, kernelIndex: foamUpdateKernel);
-				Dispatch(compute, maxFoamParticleCount, kernelIndex: foamReorderCopyBackKernel);
+				Dispatch1D(foamUpdateKernel, maxFoamParticleCount);
+				Dispatch1D(foamReorderCopyBackKernel, maxFoamParticleCount);
 			}
 
 			// 3D density map
@@ -336,27 +363,47 @@ namespace Seb.Fluid.Simulation
 			int w = Mathf.RoundToInt(transform.localScale.x / maxAxis * densityTextureRes);
 			int h = Mathf.RoundToInt(transform.localScale.y / maxAxis * densityTextureRes);
 			int d = Mathf.RoundToInt(transform.localScale.z / maxAxis * densityTextureRes);
-			CreateRenderTexture3D(ref DensityMap, w, h, d, UnityEngine.Experimental.Rendering.GraphicsFormat.R16_SFloat, TextureWrapMode.Clamp);
+			ComputeHelper.CreateRenderTexture3D(ref DensityMap, w, h, d, UnityEngine.Experimental.Rendering.GraphicsFormat.R16_SFloat, TextureWrapMode.Clamp);
 			//Debug.Log(w + " " + h + "  " + d);
 			compute.SetTexture(renderKernel, "DensityMap", DensityMap);
 			compute.SetInts("densityMapSize", DensityMap.width, DensityMap.height, DensityMap.volumeDepth);
-			Dispatch(compute, DensityMap.width, DensityMap.height, DensityMap.volumeDepth, renderKernel);
+			Dispatch3D(renderKernel, DensityMap.width, DensityMap.height, DensityMap.volumeDepth);
 		}
 
 		void RunSimulationStep()
 		{
-			Dispatch(compute, positionBuffer.count, kernelIndex: externalForcesKernel);
+			Dispatch1D(externalForcesKernel, positionBuffer.count);
 
-			Dispatch(compute, positionBuffer.count, kernelIndex: spatialHashKernel);
+			Dispatch1D(spatialHashKernel, positionBuffer.count);
 			spatialHash.Run();
 			
-			Dispatch(compute, positionBuffer.count, kernelIndex: reorderKernel);
-			Dispatch(compute, positionBuffer.count, kernelIndex: reorderCopybackKernel);
+			Dispatch1D(reorderKernel, positionBuffer.count);
+			Dispatch1D(reorderCopybackKernel, positionBuffer.count);
 
-			Dispatch(compute, positionBuffer.count, kernelIndex: densityKernel);
-			Dispatch(compute, positionBuffer.count, kernelIndex: pressureKernel);
-			if (viscosityStrength != 0) Dispatch(compute, positionBuffer.count, kernelIndex: viscosityKernel);
-			Dispatch(compute, positionBuffer.count, kernelIndex: updatePositionsKernel);
+			Dispatch1D(densityKernel, positionBuffer.count);
+			Dispatch1D(pressureKernel, positionBuffer.count);
+			if (viscosityStrength != 0) Dispatch1D(viscosityKernel, positionBuffer.count);
+			Dispatch1D(updatePositionsKernel, positionBuffer.count);
+		}
+
+		void Dispatch1D(int kernel, int count)
+		{
+			if (kernel < 0)
+				return;
+
+			int groups = Mathf.Max(1, Mathf.CeilToInt(count / 256f));
+			compute.Dispatch(kernel, groups, 1, 1);
+		}
+
+		void Dispatch3D(int kernel, int width, int height, int depth)
+		{
+			if (kernel < 0)
+				return;
+
+			int groupsX = Mathf.Max(1, Mathf.CeilToInt(width / 8f));
+			int groupsY = Mathf.Max(1, Mathf.CeilToInt(height / 8f));
+			int groupsZ = Mathf.Max(1, Mathf.CeilToInt(depth / 8f));
+			compute.Dispatch(kernel, groupsX, groupsY, groupsZ);
 		}
 
 		void UpdateSmoothingConstants()
@@ -437,6 +484,10 @@ namespace Seb.Fluid.Simulation
 				compute.SetVector("_BoardCenter", drawingBoard.transform.position);
 				compute.SetVector("_BoardHalfSize", new Vector4(half.x, 0f, half.y, 0f));
 				compute.SetInt("_BoardTexRes", drawingBoard.textureResolution);
+				if (drawingBoard.paintAmountTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
+				}
 
 				SurfaceMaterial mat = drawingBoard.GetComponent<SurfaceMaterial>();
 				if (mat != null)
@@ -520,7 +571,7 @@ namespace Seb.Fluid.Simulation
 			{
 				foreach (var kvp in bufferNameLookup)
 				{
-					Release(kvp.Key);
+					ComputeHelper.Release(kvp.Key);
 				}
 			}
 

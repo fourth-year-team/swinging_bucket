@@ -8,6 +8,9 @@ public class DrawingBoard : MonoBehaviour
     [HideInInspector]
     public RenderTexture boardTexture;
 
+    [HideInInspector]
+    public RenderTexture paintAmountTexture;
+
     void Awake()
     {
         // Create a writable texture the compute shader can paint onto
@@ -17,11 +20,14 @@ public class DrawingBoard : MonoBehaviour
         boardTexture.wrapMode = TextureWrapMode.Clamp;
         boardTexture.Create();
 
+        paintAmountTexture = new RenderTexture(textureResolution, textureResolution, 0, RenderTextureFormat.RFloat);
+        paintAmountTexture.enableRandomWrite = true;
+        paintAmountTexture.filterMode = FilterMode.Bilinear;
+        paintAmountTexture.wrapMode = TextureWrapMode.Clamp;
+        paintAmountTexture.Create();
+
         // Clear to white (clean board)
-        RenderTexture prev = RenderTexture.active;
-        RenderTexture.active = boardTexture;
-        GL.Clear(true, true, Color.white);
-        RenderTexture.active = prev;
+        ClearBoard();
 
         // Show the texture on the board's surface
         Renderer rend = GetComponent<Renderer>();
@@ -55,8 +61,16 @@ public class DrawingBoard : MonoBehaviour
     {
         if (boardTexture == null) return;
         RenderTexture prev = RenderTexture.active;
+
         RenderTexture.active = boardTexture;
         GL.Clear(true, true, Color.white);
+
+        if (paintAmountTexture != null)
+        {
+            RenderTexture.active = paintAmountTexture;
+            GL.Clear(true, true, Color.clear);
+        }
+
         RenderTexture.active = prev;
     }
 
@@ -65,6 +79,11 @@ public class DrawingBoard : MonoBehaviour
         if (boardTexture != null)
         {
             boardTexture.Release();
+        }
+
+        if (paintAmountTexture != null)
+        {
+            paintAmountTexture.Release();
         }
     }
 }

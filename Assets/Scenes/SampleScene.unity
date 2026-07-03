@@ -2231,6 +2231,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DrawingBoard
   textureResolution: 1024
   boardTexture: {fileID: 0}
+  paintAmountTexture: {fileID: 0}
 --- !u!114 &1273481097
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2865,6 +2866,7 @@ MonoBehaviour:
   compute: {fileID: 7200000, guid: 9443696acfd0ebe4fb503b56d952256c, type: 3}
   spawner: {fileID: 1724698702}
   bucketBody: {fileID: 202964311}
+  drawingBoard: {fileID: 1273481096}
   boundsMin: {x: -60, y: 0, z: -60}
   boundsMax: {x: 60, y: 40, z: 60}
   DensityMap: {fileID: 0}
