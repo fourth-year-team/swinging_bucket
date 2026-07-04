@@ -1809,10 +1809,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 15226ddaea3a4b14c9ff177be0a0e603, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Rope
-  startTheta: 0
+  startTheta: 30
   startPhi: 0
   inital_offset: {x: 10, y: 0, z: 0}
-  angularMotion: 0
+  angularMotion: 1
   theta: 0
   phi: 0
   anchor: {fileID: 1511524331}
@@ -2277,7 +2277,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bdfe3008efbf29745879ab1d40574478, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Rendering.ParticleDisplay3D
-  mode: 0
+  mode: 2
   scale: 5
   colourMap:
     serializedVersion: 2
@@ -2839,7 +2839,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.FluidSim
   normalTimeScale: 1
-  slowTimeScale: 0.1
   maxTimestepFPS: 60
   iterationsPerFrame: 3
   gravity: -10
@@ -2848,7 +2847,7 @@ MonoBehaviour:
   pressureMultiplier: 288
   nearPressureMultiplier: 2.15
   viscosityStrength: 0
-  collisionDamping: 0.95
+  collisionDamping: 0.2
   foamActive: 0
   maxFoamParticleCount: 1000
   trappedAirSpawnRate: 0
@@ -2861,7 +2860,7 @@ MonoBehaviour:
   bubbleClassifyMinNeighbours: 20
   bubbleScale: 0.8
   bubbleChangeScaleSpeed: 1
-  renderToTex3D: 1
+  renderToTex3D: 0
   densityTextureRes: 150
   compute: {fileID: 7200000, guid: 9443696acfd0ebe4fb503b56d952256c, type: 3}
   spawner: {fileID: 1724698702}
@@ -2882,7 +2881,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f99a384512b94654fbeb7c06c43f81ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.Spawner3D
-  particleSpawnDensity: 60
+  particleSpawnDensity: 500
   initialVel:
     x: 0
     y: 0
@@ -2893,8 +2892,10 @@ MonoBehaviour:
   - centre: {x: 3.92, y: -1.94, z: 0}
     size: 4
     debugDisplayCol: {r: 1, g: 0, b: 0, a: 0}
-  debug_num_particles: 3375
-  debug_spawn_volume: 64
+  bucketBody: {fileID: 202964311}
+  bucketSpawnMargin: 0.3
+  debug_num_particles: 6859
+  debug_spawn_volume: 15.158603
 --- !u!23 &1724698703
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -3363,6 +3364,50 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2108645034}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &2108645039
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2108645040}
+  - component: {fileID: 2108645041}
+  m_Layer: 0
+  m_Name: SceneManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2108645040
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2108645039}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2108645041
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2108645039}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8f3c2d1e4b56789abc0123456789def, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -3377,3 +3422,4 @@ SceneRoots:
   - {fileID: 202964310}
   - {fileID: 1273481092}
   - {fileID: 396450310}
+  - {fileID: 2108645040}

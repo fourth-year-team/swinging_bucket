@@ -248,8 +248,9 @@ void ResolveCollisions(inout float3 pos, inout float3 vel, float collisionDampin
         }
         else
         {
-            // Wall collision (frustum sides)
-            if (radial > bucketRadius && posLocal.y < _BucketTopY)
+            // Wall and bottom collision share the same margin for consistency.
+            float wallMargin = max(0.5f, _ParticleRadius * 2);
+            if (radial > bucketRadius && radial < bucketRadius + wallMargin && posLocal.y < _BucketTopY && posLocal.y > _BucketBottomY - wallMargin)
             {
                 float2 dir = posLocal.xz / max(radial, 1e-6f);
                 posLocal.xz = dir * bucketRadius;
@@ -261,9 +262,10 @@ void ResolveCollisions(inout float3 pos, inout float3 vel, float collisionDampin
                 relVel *= collisionDamping;
             }
 
-            // Bottom collision (clamp non-escaped particles above the hole)
-            // Escaped-through-hole case is already handled above
-            if (posLocal.y < _BucketBottomY)
+            // Bottom collision (clamp particles above the hole)
+            // Use the same wallMargin as the wall collision so there's no
+            // annular gap where particles can slip past both checks.
+            if (posLocal.y < _BucketBottomY && radial < bucketRadius + wallMargin)
             {
                 posLocal.y = _BucketBottomY;
                 float3 nWorld = normalize(mul((float3x3)_BucketLocalToWorld, float3(0, 1, 0)));

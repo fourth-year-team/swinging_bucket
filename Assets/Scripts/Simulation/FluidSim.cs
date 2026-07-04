@@ -12,7 +12,6 @@ namespace Seb.Fluid.Simulation
 		public event Action<FluidSim> SimulationInitCompleted;
 
 		[Header("Time Step")] public float normalTimeScale = 1;
-		public float slowTimeScale = 0.1f;
 		public float maxTimestepFPS = 60; // if time-step dips lower than this fps, simulation will run slower (set to 0 to disable)
 		public int iterationsPerFrame = 3;
 
@@ -85,18 +84,14 @@ namespace Seb.Fluid.Simulation
 
 		// State
 		bool isPaused;
-		bool pauseNextFrame;
 		float smoothRadiusOld;
 		float simTimer;
-		bool inSlowMode;
 		Spawner3D.SpawnData spawnData;
 		Dictionary<ComputeBuffer, string> bufferNameLookup;
 
 		void Start()
 		{
-			Debug.Log("Controls: Space = Play/Pause, Q = SlowMode, R = Reset");
-			isPaused = false;
-
+			isPaused = true;
 			Initialize();
 		}
 
@@ -144,9 +139,6 @@ namespace Seb.Fluid.Simulation
 				{ foamSortTargetBuffer, "WhiteParticlesCompacted" },
 				{ debugBuffer, "Debug" }
 			};
-
-			// Set buffer data
-			SetInitialBufferData(spawnData);
 
 			// External forces kernel
 			ComputeHelper.SetBuffers(compute, externalForcesKernel, bufferNameLookup, new ComputeBuffer[]
@@ -287,13 +279,6 @@ namespace Seb.Fluid.Simulation
 
 			UpdateSmoothingConstants();
 
-			// Run single frame of sim with deltaTime = 0 to initialize density texture
-			// (so that display can work even if paused at start)
-			if (renderToTex3D)
-			{
-				RunSimulationFrame(0);
-			}
-
 			SimulationInitCompleted?.Invoke(this);
 		}
 
@@ -318,17 +303,9 @@ namespace Seb.Fluid.Simulation
 			if (!isPaused)
 			{
 				float maxDeltaTime = maxTimestepFPS > 0 ? 1 / maxTimestepFPS : float.PositiveInfinity; // If framerate dips too low, run the simulation slower than real-time
-				float dt = Mathf.Min(Time.deltaTime * ActiveTimeScale, maxDeltaTime);
+				float dt = Mathf.Min(Time.deltaTime * normalTimeScale, maxDeltaTime);
 				RunSimulationFrame(dt);
 			}
-
-			if (pauseNextFrame)
-			{
-				isPaused = true;
-				pauseNextFrame = false;
-			}
-
-			HandleInput();
 		}
 
 		void RunSimulationFrame(float frameDeltaTime)
@@ -530,40 +507,23 @@ namespace Seb.Fluid.Simulation
 			simTimer = 0;
 		}
 
-		void HandleInput()
+		public void Spawn()
 		{
-			if (Input.GetKeyDown(KeyCode.Space))
-			{
-				isPaused = !isPaused;
-			}
-
-			if (Input.GetKeyDown(KeyCode.RightArrow))
-			{
-				isPaused = false;
-				pauseNextFrame = true;
-			}
-
-			if (Input.GetKeyDown(KeyCode.R))
-			{
-				pauseNextFrame = true;
-				SetInitialBufferData(spawnData);
-				if (drawingBoard != null)
-					drawingBoard.ClearBoard();
-				// Run single frame of sim with deltaTime = 0 to initialize density texture
-				// (so that display can work even if paused at start)
-				if (renderToTex3D)
-				{
-					RunSimulationFrame(0);
-				}
-			}
-
-			if (Input.GetKeyDown(KeyCode.Q))
-			{
-				inSlowMode = !inSlowMode;
-			}
+			spawnData = spawner.GetSpawnData();
+			SetInitialBufferData(spawnData);
+			isPaused = false;
 		}
 
-		private float ActiveTimeScale => inSlowMode ? slowTimeScale : normalTimeScale;
+		public void ResetSimulation()
+		{
+			SetInitialBufferData(spawnData);
+			if (drawingBoard != null)
+				drawingBoard.ClearBoard();
+			if (renderToTex3D)
+			{
+				RunSimulationFrame(0);
+			}
+		}
 
 		void OnDestroy()
 		{

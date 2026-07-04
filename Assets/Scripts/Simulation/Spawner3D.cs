@@ -13,6 +13,10 @@ namespace Seb.Fluid.Simulation
 		public bool showSpawnBounds;
 		public SpawnRegion[] spawnRegions;
 
+		[Header("Auto Spawn (inside bucket)")]
+		public BucketBody bucketBody;
+		public float bucketSpawnMargin = 0.3f;
+
 		[Header("Debug Info")] public int debug_num_particles;
 		public float debug_spawn_volume;
 
@@ -22,15 +26,52 @@ namespace Seb.Fluid.Simulation
 			List<float3> allPoints = new();
 			List<float3> allVelocities = new();
 
-			foreach (SpawnRegion region in spawnRegions)
+			if (bucketBody != null)
 			{
-				int particlesPerAxis = region.CalculateParticleCountPerAxis(particleSpawnDensity);
-				(float3[] points, float3[] velocities) = SpawnCube(particlesPerAxis, region.centre, Vector3.one * region.size);
-				allPoints.AddRange(points);
-				allVelocities.AddRange(velocities);
+				SpawnInBucket(allPoints, allVelocities);
+			}
+			else
+			{
+				foreach (SpawnRegion region in spawnRegions)
+				{
+					int particlesPerAxis = region.CalculateParticleCountPerAxis(particleSpawnDensity);
+					(float3[] points, float3[] velocities) = SpawnCube(particlesPerAxis, region.centre, Vector3.one * region.size);
+					allPoints.AddRange(points);
+					allVelocities.AddRange(velocities);
+				}
 			}
 
 			return new SpawnData() { points = allPoints.ToArray(), velocities = allVelocities.ToArray() };
+		}
+
+		void SpawnInBucket(List<float3> points, List<float3> velocities)
+		{
+			Vector3 scale = bucketBody.transform.lossyScale;
+
+			float bottomRadius = bucketBody.bottomRadius * scale.x;
+			float topRadius = bucketBody.topRadius * scale.x;
+			float innerBottomY = (bucketBody.bottomY + bucketSpawnMargin) * scale.y;
+			float innerTopY = (bucketBody.topY - bucketSpawnMargin) * scale.y;
+
+			float height = innerTopY - innerBottomY;
+			float narrowestRadius = Mathf.Min(bottomRadius, topRadius);
+			float maxHalfSize = Mathf.Min(narrowestRadius / Mathf.Sqrt(2), height / 2);
+			float cubeSize = Mathf.Max(0.1f, maxHalfSize * 2);
+
+			float localCentreY = (bucketBody.bottomY + bucketBody.topY) / 2;
+			Vector3 centre = bucketBody.transform.TransformPoint(new Vector3(0, localCentreY, 0));
+
+			int particlesPerAxis = CalculateParticlesPerAxis(cubeSize, particleSpawnDensity);
+			var (pts, vels) = SpawnCube(particlesPerAxis, centre, Vector3.one * cubeSize);
+			points.AddRange(pts);
+			velocities.AddRange(vels);
+		}
+
+		static int CalculateParticlesPerAxis(float cubeSize, int density)
+		{
+			float volume = cubeSize * cubeSize * cubeSize;
+			int targetCount = (int)(volume * density);
+			return Math.Max(1, (int)Math.Cbrt(targetCount));
 		}
 
 		(float3[] p, float3[] v) SpawnCube(int numPerAxis, Vector3 centre, Vector3 size)
@@ -72,7 +113,20 @@ namespace Seb.Fluid.Simulation
 			debug_spawn_volume = 0;
 			debug_num_particles = 0;
 
-			if (spawnRegions != null)
+			if (bucketBody != null)
+			{
+				Vector3 scale = bucketBody.transform.lossyScale;
+				float bottomRadius = bucketBody.bottomRadius * scale.x;
+				float topRadius = bucketBody.topRadius * scale.x;
+				float height = ((bucketBody.topY - bucketBody.bottomY) - bucketSpawnMargin * 2) * scale.y;
+				float narrowestRadius = Mathf.Min(bottomRadius, topRadius);
+				float maxHalfSize = Mathf.Min(narrowestRadius / Mathf.Sqrt(2), height / 2);
+				float cubeSize = Mathf.Max(0.1f, maxHalfSize * 2);
+				debug_spawn_volume = cubeSize * cubeSize * cubeSize;
+				debug_num_particles = CalculateParticlesPerAxis(cubeSize, particleSpawnDensity);
+				debug_num_particles = debug_num_particles * debug_num_particles * debug_num_particles;
+			}
+			else if (spawnRegions != null)
 			{
 				foreach (SpawnRegion region in spawnRegions)
 				{
@@ -87,6 +141,21 @@ namespace Seb.Fluid.Simulation
 		{
 			if (showSpawnBounds && !Application.isPlaying)
 			{
+				if (bucketBody != null)
+				{
+					Vector3 scale = bucketBody.transform.lossyScale;
+					float bottomRadius = bucketBody.bottomRadius * scale.x;
+					float topRadius = bucketBody.topRadius * scale.x;
+					float height = ((bucketBody.topY - bucketBody.bottomY) - bucketSpawnMargin * 2) * scale.y;
+					float narrowestRadius = Mathf.Min(bottomRadius, topRadius);
+					float maxHalfSize = Mathf.Min(narrowestRadius / Mathf.Sqrt(2), height / 2);
+					float cubeSize = Mathf.Max(0.1f, maxHalfSize * 2);
+					float localCentreY = (bucketBody.bottomY + bucketBody.topY) / 2;
+					Vector3 centre = bucketBody.transform.TransformPoint(new Vector3(0, localCentreY, 0));
+					Gizmos.color = Color.green;
+					Gizmos.DrawWireCube(centre, Vector3.one * cubeSize);
+				}
+
 				foreach (SpawnRegion region in spawnRegions)
 				{
 					Gizmos.color = region.debugDisplayCol;
