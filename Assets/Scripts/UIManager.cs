@@ -544,6 +544,7 @@ public class UIManager : MonoBehaviour
         AddSpawnButton(sidePanel.transform);
         AddHoleSettings(sidePanel.transform);
         AddFluidSettings(sidePanel.transform);
+        AddRopeSettings(sidePanel.transform);
     }
 
     static Sprite BuildRoundedSprite(int r, int border, Color fill, Color outline)
@@ -1090,6 +1091,64 @@ public class UIManager : MonoBehaviour
         particleValueLE.preferredWidth = 60;
     }
 
+    void AddToggleRow(Transform parent, string name, string label, bool initialValue, System.Action<bool> onChanged)
+    {
+        GameObject row = new GameObject(name, typeof(HorizontalLayoutGroup));
+        row.transform.SetParent(parent, false);
+
+        HorizontalLayoutGroup tlg = row.GetComponent<HorizontalLayoutGroup>();
+        tlg.childAlignment = TextAnchor.MiddleLeft;
+        tlg.childControlWidth = true;
+        tlg.childControlHeight = true;
+        tlg.childForceExpandWidth = false;
+        tlg.spacing = 4;
+
+        LayoutElement rowLE = row.AddComponent<LayoutElement>();
+        rowLE.preferredHeight = 24;
+
+        GameObject toggleGO = new GameObject("Toggle", typeof(Toggle), typeof(Image));
+        toggleGO.transform.SetParent(row.transform, false);
+        Toggle toggle = toggleGO.GetComponent<Toggle>();
+        Image toggleBg = toggleGO.GetComponent<Image>();
+        toggleBg.color = new Color(0.2f, 0.2f, 0.22f);
+        LayoutElement toggleLE = toggleGO.AddComponent<LayoutElement>();
+        toggleLE.preferredWidth = 18;
+        toggleLE.preferredHeight = 18;
+        toggleLE.flexibleWidth = 0;
+        toggleLE.flexibleHeight = 0;
+
+        GameObject checkGO = new GameObject("Checkmark", typeof(Image));
+        checkGO.transform.SetParent(toggleGO.transform, false);
+        Image checkImg = checkGO.GetComponent<Image>();
+        checkImg.color = new Color(0.22f, 0.56f, 0.95f);
+        RectTransform checkRt = checkGO.GetComponent<RectTransform>();
+        checkRt.anchorMin = Vector2.zero;
+        checkRt.anchorMax = Vector2.one;
+        checkRt.offsetMin = new Vector2(2, 2);
+        checkRt.offsetMax = new Vector2(-2, -2);
+        toggle.graphic = checkImg;
+        toggle.targetGraphic = toggleBg;
+        toggle.transition = Selectable.Transition.ColorTint;
+        ColorBlock tcb = toggle.colors;
+        tcb.highlightedColor = new Color(0.3f, 0.3f, 0.35f);
+        toggle.colors = tcb;
+
+        toggle.isOn = initialValue;
+
+        GameObject toggleLabelGO = new GameObject("Label", typeof(Text));
+        toggleLabelGO.transform.SetParent(row.transform, false);
+        Text toggleLabel = toggleLabelGO.GetComponent<Text>();
+        toggleLabel.text = label;
+        toggleLabel.fontSize = 18;
+        toggleLabel.alignment = TextAnchor.MiddleLeft;
+        toggleLabel.color = new Color(0.85f, 0.86f, 0.92f);
+        toggleLabel.font = uiFont;
+        LayoutElement toggleLabelLE = toggleLabelGO.AddComponent<LayoutElement>();
+        toggleLabelLE.flexibleWidth = 1;
+
+        toggle.onValueChanged.AddListener(v => onChanged(v));
+    }
+
     InputField AddInputFieldRow(Transform parent, string name, string label, string initialValue, System.Action<string> onValueChanged)
     {
         GameObject row = new GameObject(name, typeof(VerticalLayoutGroup));
@@ -1167,6 +1226,61 @@ public class UIManager : MonoBehaviour
             if (dampingValueText != null)
                 dampingValueText.text = string.Format("{0:F2}", fluidSim.collisionDamping);
         }
+    }
+
+    void AddRopeSettings(Transform parent)
+    {
+        GameObject section = CreateCard(parent, "ROPE SETTINGS", "");
+        section.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+
+        Text sectionTitle = section.transform.Find("Header/Title").GetComponent<Text>();
+        sectionTitle.text = "ROPE SETTINGS";
+        sectionTitle.fontSize = 13;
+        sectionTitle.fontStyle = FontStyle.Bold;
+        sectionTitle.alignment = TextAnchor.MiddleLeft;
+        sectionTitle.color = new Color(0.85f, 0.85f, 0.9f);
+
+        Transform iconT = section.transform.Find("Header/Icon");
+        if (iconT != null) iconT.gameObject.SetActive(false);
+
+        VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
+        slg.childAlignment = TextAnchor.UpperLeft;
+        slg.childControlWidth = true;
+        slg.childControlHeight = true;
+        slg.spacing = 8;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 0;
+
+        AddInputFieldRow(section.transform, "StartThetaRow", "Start Theta", rope != null ? rope.startTheta.ToString("F1") : "20", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.SetThetaPhiDegrees(val, rope.startPhi);
+        });
+
+        AddInputFieldRow(section.transform, "StartPhiRow", "Start Phi", rope != null ? rope.startPhi.ToString("F1") : "0", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.SetThetaPhiDegrees(rope.startTheta, val);
+        });
+
+        AddToggleRow(section.transform, "AngularMotionRow", "Angular Motion", rope != null ? rope.angularMotion : true, v =>
+        {
+            if (rope != null) rope.angularMotion = v;
+        });
+
+        AddInputFieldRow(section.transform, "RopeLengthRow", "Rope Length", rope != null ? rope.ropeLength.ToString("F1") : "5", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.ropeLength = val;
+        });
+
+        AddToggleRow(section.transform, "TwistEnableRow", "Twist Enable", rope != null ? rope.twistEnabled : false, v =>
+        {
+            if (rope != null) rope.twistEnabled = v;
+        });
+
+        AddInputFieldRow(section.transform, "PaintMassRow", "Paint Mass", rope != null ? rope.paintMass.ToString("F1") : "40", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.paintMass = val;
+        });
     }
 
     void AddSpawnButton(Transform parent)
