@@ -50,9 +50,10 @@ namespace Seb.Fluid.Simulation
 
 		[HideInInspector] public RenderTexture DensityMap;
 		public Vector3 Scale => transform.localScale;
+        public int NumParticles => positionBuffer?.count ?? 0;
 
-		// Buffers
-		public ComputeBuffer foamBuffer { get; private set; }
+        // Buffers
+        public ComputeBuffer foamBuffer { get; private set; }
 		public ComputeBuffer foamSortTargetBuffer { get; private set; }
 		public ComputeBuffer foamCountBuffer { get; private set; }
 		public ComputeBuffer positionBuffer { get; private set; }
