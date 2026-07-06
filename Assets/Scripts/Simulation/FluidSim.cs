@@ -242,6 +242,10 @@ namespace Seb.Fluid.Simulation
 				{
 					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
 				}
+				if (drawingBoard.paintColorTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintColorTexture", drawingBoard.paintColorTexture);
+				}
 			}
 
 			// Render to 3d tex kernel
@@ -466,6 +470,10 @@ namespace Seb.Fluid.Simulation
 				if (drawingBoard.paintAmountTexture != null)
 				{
 					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
+				}
+				if (drawingBoard.paintColorTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintColorTexture", drawingBoard.paintColorTexture);
 				}
 
 				SurfaceMaterial mat = drawingBoard.GetComponent<SurfaceMaterial>();
