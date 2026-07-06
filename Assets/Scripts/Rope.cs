@@ -26,6 +26,14 @@ public class Rope : MonoBehaviour
     public float gravity = -9.81f;
     public float damping = 0.02f;
 
+    [Header("Twist")]
+    public bool twistEnabled;
+    public float twistSpeed = 360f;
+    public float torsionalStiffness = 8f;
+    public float torsionalDamping = 0.95f;
+    public float twistAngle;
+    [HideInInspector] public float twistVelocity;
+
     [Header("Bucket")]
     public BucketBody bucketBody;
     public Transform bucketVisual;
@@ -215,16 +223,41 @@ public class Rope : MonoBehaviour
 
         if (bucketVisual != null)
         {
-            Vector3 ropeDir = (currentPos[segmentCount - 1] - currentPos[segmentCount - 2]).normalized;
-
             bucketVisual.position = bucketBody.position + hookOffset;
-            bucketVisual.rotation = Quaternion.FromToRotation(Vector3.up, -ropeDir);
         }
 
         // Update real-time theta/phi from rope geometry
         Vector3 pendulumVec = currentPos[segmentCount - 1] - currentPos[0];
         theta = Mathf.Atan2(new Vector2(pendulumVec.x, pendulumVec.z).magnitude, -pendulumVec.y);
         phi = Mathf.Atan2(pendulumVec.z, pendulumVec.x);
+
+        // Torsional twist — wind up when enabled, spring back when released
+        float dtFixed = Time.fixedDeltaTime;
+        if (twistEnabled)
+        {
+            twistAngle += twistSpeed * Mathf.Deg2Rad * dtFixed;
+        }
+        else
+        {
+            float torque = -torsionalStiffness * twistAngle;
+            twistVelocity += torque * dtFixed;
+            twistVelocity *= torsionalDamping;
+            twistAngle += twistVelocity * dtFixed;
+            if (Mathf.Abs(twistAngle) < 0.001f && Mathf.Abs(twistVelocity) < 0.001f)
+            {
+                twistAngle = 0f;
+                twistVelocity = 0f;
+            }
+        }
+
+        // Apply twist to bucket visual
+        if (bucketVisual != null)
+        {
+            Vector3 ropeDir = (currentPos[segmentCount - 1] - currentPos[segmentCount - 2]).normalized;
+            Quaternion ropeRot = Quaternion.FromToRotation(Vector3.up, -ropeDir);
+            Quaternion twistRot = Quaternion.AngleAxis(twistAngle * Mathf.Rad2Deg, -ropeDir);
+            bucketVisual.rotation = twistRot * ropeRot;
+        }
 
         UpdateMesh();
     }
@@ -390,7 +423,8 @@ public class Rope : MonoBehaviour
 
             for (int r = 0; r < radialSegments; r++)
             {
-                float angle = (float)r / radialSegments * Mathf.PI * 2f;
+                float localTwist = twistAngle * seg / (segmentCount - 1);
+                float angle = (float)r / radialSegments * Mathf.PI * 2f + localTwist;
                 Vector3 mesh_offset = (Mathf.Cos(angle) * normal + Mathf.Sin(angle) * binormal) * ropeRadius;
                 int idx = seg * radialSegments + r;
                 vertices[idx] = transform.InverseTransformPoint(currentPos[seg] + mesh_offset);

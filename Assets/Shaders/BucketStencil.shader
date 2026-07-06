@@ -6,7 +6,7 @@ Shader "Custom/BucketStencil"
         [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
         _BumpMap ("Normal Map", 2D) = "bump" {}
         _Metallic ("Metallic", Range(0,1)) = 0
-        _Smoothness ("Smoothness", Range(0,1)) = 0
+        _Smoothness ("Smoothness", Range(0,1)) = 0.5
         _OcclusionMap ("Occlusion Map", 2D) = "white" {}
         _OcclusionStrength ("Occlusion Strength", Range(0,1)) = 1
     }
