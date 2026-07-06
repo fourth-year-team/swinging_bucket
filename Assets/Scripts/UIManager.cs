@@ -36,6 +36,7 @@ public class UIManager : MonoBehaviour
     private Rope rope;
     private BucketBody bucket;
     private FluidSim fluidSim;
+    private DrawingBoard drawingBoard;
     private Button spawnButton;
     private bool particlesSpawned;
 
@@ -60,7 +61,7 @@ public class UIManager : MonoBehaviour
 
         CreateCanvas();
         CreateHUD();
-        //CreateControlPanel();
+        AddSaveBoardButton(canvas.transform);
         CreateSidePanel();
 
         if (presetColors.Length > 0)
@@ -72,6 +73,7 @@ public class UIManager : MonoBehaviour
         rope = FindFirstObjectByType<Rope>();
         bucket = FindFirstObjectByType<BucketBody>();
         fluidSim = FindFirstObjectByType<FluidSim>();
+        drawingBoard = FindFirstObjectByType<DrawingBoard>();
         SyncAngleControlsFromRope();
         SyncFluidSettings();
     }
@@ -1180,6 +1182,62 @@ public class UIManager : MonoBehaviour
         {
             GameManager.Instance.StartGame();
             btn.interactable = false;
+        });
+    }
+
+    void AddSaveBoardButton(Transform parent)
+    {
+        GameObject btnGO = new GameObject("SaveBoardButton", typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        Image bg = btnGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.08f, 0.09f, 0.11f), Color.clear);
+        bg.color = Color.white;
+
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 30f;
+        btnLE.flexibleHeight = 0;
+
+        Button btn = btnGO.GetComponent<Button>();
+        btn.targetGraphic = bg;
+        ColorBlock cb = btn.colors;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.selectedColor = Color.white;
+        cb.disabledColor = new Color(0.6f, 0.6f, 0.6f);
+        btn.colors = cb;
+
+        RectTransform rt = btnGO.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(0, 1);
+        rt.pivot = new Vector2(0, 1);
+        rt.anchoredPosition = new Vector2(30, -240);
+        rt.sizeDelta = new Vector2(260, 30);
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "SAVE BOARD IMAGE";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        btn.onClick.AddListener(() =>
+        {
+            if (drawingBoard == null)
+                drawingBoard = FindFirstObjectByType<DrawingBoard>();
+
+            if (drawingBoard != null)
+                drawingBoard.SaveBoardImage();
         });
     }
 
