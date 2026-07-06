@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class RespawnButton : MonoBehaviour
 {
-	public bool hasSpawned { get; private set; }
+	public bool hasSpawned { get; set; }
 
 	public void Spawn()
 	{

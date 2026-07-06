@@ -43,6 +43,8 @@ namespace Seb.Fluid.Rendering
 
 		void LateUpdate()
 		{
+			if (sim != null && !sim.HasSpawned) return;
+
 			UpdateSettings();
 
 			if (mode != DisplayMode.None && mesh != null && mat != null && argsBuffer != null)
@@ -80,13 +82,28 @@ namespace Seb.Fluid.Rendering
 				}
 			}
 
-			if (mat != null)
+		if (mat != null)
 			{
 				if (needsUpdate)
 				{
 					needsUpdate = false;
 					TextureFromGradient(ref gradientTexture, gradientResolution, colourMap);
 					mat.SetTexture("ColourMap", gradientTexture);
+				}
+
+				// Re-bind buffers every frame (they may have been recreated by restart)
+				if (sim != null)
+				{
+					mat.SetBuffer("Positions", sim.positionBuffer);
+					mat.SetBuffer("Velocities", sim.velocityBuffer);
+					mat.SetBuffer("DebugBuffer", sim.debugBuffer);
+
+					// Recreate argsBuffer if particle count changed
+					if (argsBuffer == null || argsBuffer.count != sim.positionBuffer.count)
+					{
+						ComputeHelper.Release(argsBuffer);
+						ComputeHelper.CreateArgsBuffer(ref argsBuffer, mesh, sim.positionBuffer.count);
+					}
 				}
 
 				mat.SetFloat("scale", scale * 0.01f);

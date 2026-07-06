@@ -7,6 +7,8 @@ Shader "Fluid/FluidRender"
     }
     SubShader
     {
+        Tags { "Queue" = "Geometry+1" "RenderType" = "Transparent" }
+
         Cull Off ZWrite Off ZTest Always
         Blend SrcAlpha OneMinusSrcAlpha
 
@@ -298,13 +300,23 @@ Shader "Fluid/FluidRender"
 
                 // ---- Calculate fluid hit point and smooth out normals along edges of bounding box ----
                 float3 hitPos = _WorldSpaceCameraPos.xyz + viewDirWorld * depthSmooth;
+                float3 hitPosHard = _WorldSpaceCameraPos.xyz + viewDirWorld * depth_hard;
                 {
-                    float3 hitLocal = mul(_BucketWorldToLocal, float4(hitPos, 1)).xyz;
-                    bool inBucketExp = _HasBucket != 0
-                        && hitLocal.y >= _BucketBottomY
-                        && hitLocal.y <= _BucketTopY
-                        && length(hitLocal.xz) <= BucketRadiusAtY(hitLocal.y) + _DepthParticleSize;
-                    if ((IsInsideBucket(hitPos) || inBucketExp) && !RayCanSeeNearBucket(hitPos)) return float4(0, 0, 0, 0);
+                    float3 hitLocal = mul(_BucketWorldToLocal, float4(hitPosHard, 1)).xyz;
+                    float3 camLocal = mul(_BucketWorldToLocal, float4(_WorldSpaceCameraPos.xyz, 1)).xyz;
+
+                    // Extend Y bounds by _DepthParticleSize to catch particles near bucket top/bottom
+                    float bucketBottomExt = _BucketBottomY - _DepthParticleSize;
+                    // For points below the physical bottom, use the bottom radius
+                    float radiusAtY = hitLocal.y < _BucketBottomY
+                        ? BucketRadiusAtY(_BucketBottomY)
+                        : BucketRadiusAtY(hitLocal.y);
+                    bool nearBucket = _HasBucket != 0
+                        && hitLocal.y >= bucketBottomExt
+                        && hitLocal.y <= _BucketTopY + _DepthParticleSize
+                        && length(hitLocal.xz) <= radiusAtY + _DepthParticleSize;
+
+                    if (nearBucket && !RayCanSeeNearBucket(hitPosHard)) return float4(0, 0, 0, 0);
                 }
 
                 float3 smoothEdgeNormal = SmoothEdgeNormals(normal, hitPos, boundsSize).xyz;
@@ -317,11 +329,11 @@ Shader "Fluid/FluidRender"
                 }
 
                 // If no fluid is present, leave the already-rendered camera image untouched.
-                if (depthSmooth > 1000) return float4(0, 0, 0, 0);
+                if (depth_hard > 1000) return float4(0, 0, 0, 0);
 
                 float sceneEyeDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv));
-                float fluidEyeDepth = -mul(UNITY_MATRIX_V, float4(hitPos, 1)).z;
-                if (sceneEyeDepth < fluidEyeDepth - 0.03)
+                float fluidEyeDepth = -mul(UNITY_MATRIX_V, float4(hitPosHard, 1)).z;
+                if (sceneEyeDepth < fluidEyeDepth + 0.001)
                 {
                     return float4(0, 0, 0, 0);
                 }

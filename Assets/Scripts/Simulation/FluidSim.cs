@@ -36,7 +36,14 @@ namespace Seb.Fluid.Simulation
         [HideInInspector] public float bubbleScale = 0.5f;
         [HideInInspector] public float bubbleChangeScaleSpeed = 7;
 
-        [HideInInspector] [Header("Volumetric Render Settings")] public bool renderToTex3D;
+		[Header("Environmental Forces")]
+		public float rho_air = 1.225f;
+		public float Cd_fluid = 0.47f;
+		[Range(0f, 1f)] public float humidity = 0f;
+		public Vector3 windDirection = Vector3.right;
+		[Range(0f, 50f)] public float windStrength = 0f;
+
+		[HideInInspector] [Header("Volumetric Render Settings")] public bool renderToTex3D;
 		public int densityTextureRes;
 
 		[Header("References")] public ComputeShader compute;
@@ -361,7 +368,13 @@ namespace Seb.Fluid.Simulation
 
 			Dispatch1D(densityKernel, positionBuffer.count);
 			Dispatch1D(pressureKernel, positionBuffer.count);
-			if (viscosityStrength != 0) Dispatch1D(viscosityKernel, positionBuffer.count);
+			float effectiveViscosity = viscosityStrength * (1f + 0.1f * humidity);
+			if (effectiveViscosity != 0)
+			{
+				compute.SetFloat("viscosityStrength", effectiveViscosity);
+				Dispatch1D(viscosityKernel, positionBuffer.count);
+				compute.SetFloat("viscosityStrength", viscosityStrength);
+			}
 			Dispatch1D(updatePositionsKernel, positionBuffer.count);
 		}
 
@@ -493,6 +506,12 @@ namespace Seb.Fluid.Simulation
 
 			// Particle radius (derive from smoothing radius)
 			compute.SetFloat("_ParticleRadius", smoothingRadius * 0.5f);
+
+			// Environmental forces
+			compute.SetFloat("rho_air", rho_air);
+			compute.SetFloat("Cd_fluid", Cd_fluid);
+			compute.SetFloat("humidity", humidity);
+			compute.SetVector("windVector", windDirection.normalized * windStrength);
 		}
 
 		void SetInitialBufferData(Spawner3D.SpawnData spawnData)
@@ -528,7 +547,20 @@ namespace Seb.Fluid.Simulation
 			}
 		}
 
-		void OnDestroy()
+		public void FullReset()
+		{
+			isPaused = true;
+			HasSpawned = false;
+			simTimer = 0;
+
+			ReleaseResources();
+			Initialize();
+
+			if (drawingBoard != null)
+				drawingBoard.ClearBoard();
+		}
+
+		public void ReleaseResources()
 		{
 			if (bufferNameLookup != null)
 			{
@@ -536,12 +568,19 @@ namespace Seb.Fluid.Simulation
 				{
 					ComputeHelper.Release(kvp.Key);
 				}
+				bufferNameLookup = null;
 			}
 
 			if (spatialHash != null)
 			{
 				spatialHash.Release();
+				spatialHash = null;
 			}
+		}
+
+		void OnDestroy()
+		{
+			ReleaseResources();
 		}
 
 

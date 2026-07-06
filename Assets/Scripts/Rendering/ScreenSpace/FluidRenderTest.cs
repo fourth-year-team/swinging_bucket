@@ -36,8 +36,6 @@ namespace Seb.Fluid.Rendering
 		public FluidSim sim;
 		public Camera shadowCam;
 		public Light sun;
-		public FoamRenderTest foamTest;
-		PaintStreamRenderer streamRenderer;
 
 		Mesh quadMesh;
 		Material matDepth;
@@ -52,7 +50,6 @@ namespace Seb.Fluid.Rendering
 		RenderTexture depthRt;
 		RenderTexture normalRt;
 		RenderTexture shadowRt;
-		RenderTexture foamRt;
 		RenderTexture thicknessRt;
 		RenderTexture sceneRt;
 
@@ -78,8 +75,6 @@ namespace Seb.Fluid.Rendering
 		{
 			if (sim == null) sim = FindObjectOfType<FluidSim>();
 			if (sun == null) sun = FindObjectOfType<Light>();
-			if (foamTest == null) foamTest = FindObjectOfType<FoamRenderTest>();
-			if (foamTest != null) foamTest.autoDraw = false;
 
 			// Always create a dedicated hidden shadow camera (don't reuse a scene camera)
 			if (shadowCam != null && shadowCam.gameObject.hideFlags != HideFlags.HideAndDontSave)
@@ -94,8 +89,7 @@ namespace Seb.Fluid.Rendering
 				shadowCam.enabled = false;
 			}
 
-			streamRenderer = FindObjectOfType<PaintStreamRenderer>();
-			if (streamRenderer != null) streamRenderer.enabled = false;
+
 
 			var particleDisplay = FindObjectOfType<ParticleDisplay3D>();
 			if (particleDisplay != null) particleDisplay.mode = ParticleDisplay3D.DisplayMode.None;
@@ -160,24 +154,20 @@ namespace Seb.Fluid.Rendering
 			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matThickness, 0, argsBuffer);
 			gaussSmooth.Smooth(cmd, shadowRt, shadowRt, shadowRt.descriptor, shadowSmoothSettings, Vector3.one);
 
-			cmd.SetRenderTarget(foamRt);
-			float depthClearVal = SystemInfo.usesReversedZBuffer ? 0 : 1;
-			cmd.ClearRenderTarget(true, true, new Color(0, depthClearVal, 0, 0));
-			foamTest?.RenderWithCmdBuffer(cmd);
 
 			cmd.SetRenderTarget(depthRt);
 			cmd.ClearRenderTarget(true, true, Color.white * 10000000, 1);
 			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matDepth, 0, argsBuffer);
 
 			cmd.SetRenderTarget(thicknessRt);
-			cmd.Blit(foamRt, thicknessRt, depthDownsampleCopyMat);
+			cmd.ClearRenderTarget(true, true, Color.black);
 			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matThickness, 0, argsBuffer);
 
 			cmd.Blit(null, compRt, smoothPrepareMat);
 			ApplyActiveSmoothingType(cmd, compRt, compRt, compRt.descriptor, new Vector3(1, 1, 0));
 			cmd.Blit(compRt, normalRt, matNormal);
 
-			cmd.Blit(foamRt, BuiltinRenderTextureType.CameraTarget, matComposite);
+			cmd.Blit(null, BuiltinRenderTextureType.CameraTarget, matComposite);
 
 			context.ExecuteCommandBuffer(cmd);
 			context.Submit();
@@ -204,6 +194,7 @@ namespace Seb.Fluid.Rendering
 				if (!matThickness) matThickness = new Material(thicknessShader);
 				if (!smoothPrepareMat) smoothPrepareMat = new Material(smoothThickPrepareShader);
 				if (!matComposite) matComposite = new Material(renderA);
+				matComposite.SetTexture("_MainTex", Texture2D.blackTexture);
 			}
 
 			void InitTextures()
@@ -234,7 +225,6 @@ namespace Seb.Fluid.Rendering
 				ComputeHelper.CreateRenderTexture(ref normalRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.None);
 				ComputeHelper.CreateRenderTexture(ref compRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.None);
 				ComputeHelper.CreateRenderTexture(ref shadowRt, shadowTexWidth, shadowTexHeight, FilterMode.Bilinear, fmtR, depthMode: DepthMode.None);
-				ComputeHelper.CreateRenderTexture(ref foamRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.Depth16);
 				ComputeHelper.CreateRenderTexture(ref sceneRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.None);
 			}
 		}
@@ -296,6 +286,7 @@ namespace Seb.Fluid.Rendering
 
 			matNormal.SetInt("useSmoothedDepth", Input.GetKey(KeyCode.LeftControl) ? 0 : 1);
 
+			matComposite.SetTexture("_MainTex", Texture2D.blackTexture);
 			matComposite.SetInt("debugDisplayMode", (int)displayMode);
 			matComposite.SetTexture("Comp", compRt);
 			matComposite.SetTexture("Normals", normalRt);
@@ -391,7 +382,6 @@ namespace Seb.Fluid.Rendering
 		void OnDestroy()
 		{
 			ComputeHelper.Release(argsBuffer);
-			ComputeHelper.Release(depthRt, thicknessRt, normalRt, compRt, shadowRt, foamRt, sceneRt);
 			if (shadowCamGO != null) DestroyImmediate(shadowCamGO);
 		}
 	}

@@ -150,114 +150,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 719265577}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &150886100
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 150886101}
-  - component: {fileID: 150886104}
-  - component: {fileID: 150886103}
-  - component: {fileID: 150886102}
-  m_Layer: 0
-  m_Name: Paint Fill
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &150886101
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 150886100}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 202964310}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &150886102
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 150886100}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d9ec78a77727a7b4e92629bf265a40bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PaintFillLevel
-  bucket: {fileID: 202964311}
-  paintColor: {r: 0.1, g: 0.35, b: 1, a: 0.9}
-  surfaceInset: 0.08
-  segments: 64
-  minVisibleFill: 0.01
---- !u!23 &150886103
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 150886100}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 0}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &150886104
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 150886100}
-  m_Mesh: {fileID: 0}
 --- !u!1 &202964309
 GameObject:
   m_ObjectHideFlags: 0
@@ -290,8 +182,6 @@ Transform:
   m_Children:
   - {fileID: 1405891728}
   - {fileID: 222623141}
-  - {fileID: 150886101}
-  - {fileID: 1402700745}
   m_Father: {fileID: 1583899319}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &202964311
@@ -1982,9 +1872,6 @@ MonoBehaviour:
   constraintIterations: 180
   gravity: -9.81
   damping: 0.002
-  airDamping: 0.5
-  windDirection: {x: 0, y: 0, z: 0}
-  windStrength: 0
   twistEnabled: 0
   twistSpeed: 360
   torsionalStiffness: 8
@@ -1994,7 +1881,7 @@ MonoBehaviour:
   bucketBody: {fileID: 202964311}
   bucketVisual: {fileID: 202964310}
   bucketMass: 10
-  paintMass: 40
+  paintMass: 50
   totalMass: 0
   ropeRadius: 0.05
   radialSegments: 6
@@ -2458,10 +2345,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffd64525754824f4ab3af7fdb721c47b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SurfaceMaterial
-  surfaceType: 3
-  friction: 0.3
-  stickiness: 0.98
-  absorption: 0.99
+  surfaceType: 0
+  friction: 0.55
+  stickiness: 0.92
+  absorption: 0.95
 --- !u!1 &1363558212
 GameObject:
   m_ObjectHideFlags: 0
@@ -2473,7 +2360,6 @@ GameObject:
   - component: {fileID: 1363558214}
   - component: {fileID: 1363558213}
   - component: {fileID: 1363558216}
-  - component: {fileID: 1363558215}
   m_Layer: 0
   m_Name: Particle Display
   m_TagString: Untagged
@@ -2546,23 +2432,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1240739824}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1363558215
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1363558212}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: abc562ac53fed4d4d93feb89391ef3e4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Rendering.FoamRenderTest
-  scale: 0
-  debugParam: 0
-  autoDraw: 0
-  shaderBillboard: {fileID: 4800000, guid: 4a0c3a32a60599c4198fe00e79a88932, type: 3}
-  copyCountToArgsCompute: {fileID: 7200000, guid: 315c9eb00260d8743b3ffa9803eadaf3, type: 3}
 --- !u!114 &1363558216
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2582,13 +2451,13 @@ MonoBehaviour:
   thicknessParticleScale: 0.5
   refractionMultiplier: 0.5
   testParams: {x: 0, y: 0, z: 0}
-  smoothType: 0
+  smoothType: 1
   bilateralSettings:
-    WorldRadius: 0
-    MaxScreenSpaceSize: 0
-    Strength: 0
-    DiffStrength: 0
-    Iterations: 0
+    WorldRadius: 1
+    MaxScreenSpaceSize: 15
+    Strength: 0.5
+    DiffStrength: 0.05
+    Iterations: 2
   gaussSmoothSettings:
     UseWorldSpaceRadius: 0
     Radius: 2
@@ -2623,7 +2492,6 @@ MonoBehaviour:
   sim: {fileID: 1724698701}
   shadowCam: {fileID: 205987415}
   sun: {fileID: 761768088}
-  foamTest: {fileID: 1363558215}
 --- !u!1 &1388470137
 GameObject:
   m_ObjectHideFlags: 0
@@ -2795,116 +2663,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
---- !u!1 &1402700744
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1402700745}
-  - component: {fileID: 1402700748}
-  - component: {fileID: 1402700747}
-  - component: {fileID: 1402700746}
-  m_Layer: 0
-  m_Name: Paint Stream
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1402700745
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1402700744}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 202964310}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1402700746
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1402700744}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c6209785522387f4d848c469a1d94fa1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PaintStreamRenderer
-  bucket: {fileID: 202964311}
-  paintColor: {r: 0.1, g: 0.35, b: 1, a: 1}
-  dropRadius: 0.08
-  spawnInterval: 0.035
-  dropLifetime: 1.5
-  exitSpeed: 2.5
-  gravity: 9.81
---- !u!23 &1402700747
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1402700744}
-  m_Enabled: 0
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 0}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1402700748
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1402700744}
-  m_Mesh: {fileID: 0}
 --- !u!1 &1405891727
 GameObject:
   m_ObjectHideFlags: 0
@@ -3317,7 +3075,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f99a384512b94654fbeb7c06c43f81ba, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Seb.Fluid.Simulation.Spawner3D
-  particleSpawnDensity: 1800
+  particleSpawnDensity: 2000
   initialVel:
     x: 0
     y: 0
@@ -3330,7 +3088,7 @@ MonoBehaviour:
     debugDisplayCol: {r: 1, g: 0, b: 0, a: 0}
   bucketBody: {fileID: 202964311}
   bucketSpawnMargin: 0.2
-  debug_num_particles: 27000
+  debug_num_particles: 29791
   debug_spawn_volume: 15.158603
 --- !u!43 &1815261826
 Mesh:

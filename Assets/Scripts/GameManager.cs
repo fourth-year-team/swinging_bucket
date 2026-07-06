@@ -7,7 +7,7 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public GameState State { get; private set; } = GameState.Menu;
+    public GameState State { get; set; } = GameState.Menu;
     public Color selectedColor = Color.blue;
 
     public static event System.Action<Color> OnColorChanged;

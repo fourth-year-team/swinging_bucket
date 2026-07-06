@@ -36,7 +36,10 @@ public class UIManager : MonoBehaviour
     private Rope rope;
     private BucketBody bucket;
     private FluidSim fluidSim;
+    private SimulationController simController;
     private bool particlesSpawned;
+    private Button startButton;
+    private Button spawnButton;
 
     private InputField gravityInput, smoothingRadiusInput, viscosityInput;
     private Slider dampingSlider;
@@ -71,6 +74,7 @@ public class UIManager : MonoBehaviour
         rope = FindFirstObjectByType<Rope>();
         bucket = FindFirstObjectByType<BucketBody>();
         fluidSim = FindFirstObjectByType<FluidSim>();
+        simController = FindFirstObjectByType<SimulationController>();
         SyncAngleControlsFromRope();
         SyncFluidSettings();
     }
@@ -542,6 +546,7 @@ public class UIManager : MonoBehaviour
         AddColorPicker(sidePanel.transform);
         AddStartButton(sidePanel.transform);
         AddSpawnButton(sidePanel.transform);
+        AddRestartButton(sidePanel.transform);
         AddHoleSettings(sidePanel.transform);
         AddFluidSettings(sidePanel.transform);
         AddRopeSettings(sidePanel.transform);
@@ -1327,6 +1332,7 @@ public class UIManager : MonoBehaviour
             particlesSpawned = true;
             btn.interactable = false;
         });
+        spawnButton = btn;
     }
 
     void AddStartButton(Transform parent)
@@ -1371,6 +1377,61 @@ public class UIManager : MonoBehaviour
         {
             GameManager.Instance.StartGame();
             btn.interactable = false;
+        });
+        startButton = btn;
+    }
+
+    void AddRestartButton(Transform parent)
+    {
+        GameObject btnGO = new GameObject("RestartButton", typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        Image bg = btnGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.38f, 0.29f, 0.22f), Color.clear);
+        bg.color = Color.white;
+
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 30f;
+        btnLE.flexibleHeight = 0;
+
+        Button btn = btnGO.GetComponent<Button>();
+        btn.targetGraphic = bg;
+        ColorBlock cb = btn.colors;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.selectedColor = Color.white;
+        btn.colors = cb;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "↺ RESTART";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        btn.onClick.AddListener(() =>
+        {
+            if (simController != null)
+                simController.RestartSimulation();
+
+            if (startButton != null)
+            {
+                startButton.interactable = true;
+                particlesSpawned = false;
+            }
+
+            if (spawnButton != null)
+                spawnButton.interactable = true;
         });
     }
 

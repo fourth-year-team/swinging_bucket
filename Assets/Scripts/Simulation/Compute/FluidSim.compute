@@ -82,6 +82,10 @@ float  _BoardStickiness;
 float  _BoardAbsorption;
 float4 _PaintColor;
 float  _ParticleRadius;
+float rho_air;
+float Cd_fluid;
+float humidity;
+float3 windVector;
 
 // Volume texture settings
 RWTexture3D<float> DensityMap;
@@ -162,8 +166,7 @@ void PaintBoard(float3 pos, float3 vel, float minX, float minZ, float depositSca
                     float amount = saturate(_BoardPaintAmountTexture[p] + addAmount);
                     _BoardPaintAmountTexture[p] = amount;
 
-                    float3 paintCol = saturate(_PaintColor.rgb * lerp(1.0f, 0.55f, amount));
-                    _BoardTexture[p] = float4(lerp(float3(1.0f, 1.0f, 1.0f), paintCol, amount), 1.0f);
+                    _BoardTexture[p] = float4(lerp(float3(1.0f, 1.0f, 1.0f), _PaintColor.rgb, saturate(amount)), 1.0f);
                 }
             }
         }
@@ -191,7 +194,17 @@ void DepositParticleOnBoard(inout float3 pos, inout float3 vel, inout uint escap
     float depositScale = absorption * lerp(0.25f, 1.0f, stickiness);
 
     if (length(vel) > 0.05f)
-        PaintBoard(pos, vel, minX, minZ, depositScale);
+    {
+        float3 prevPos = pos - vel * deltaTime;
+        float trailDist = length(pos - prevPos);
+        int trailSteps = max(1, min((int)ceil(trailDist / 0.025f), 8));
+        for (int s = 0; s <= trailSteps; s++)
+        {
+            float t = (float)s / trailSteps;
+            float3 p = lerp(prevPos, pos, t);
+            PaintBoard(p, vel, minX, minZ, depositScale);
+        }
+    }
 
     pos.y = _BoardTopY + _ParticleRadius;
 
@@ -534,11 +547,16 @@ void CalculatePressureForce(uint3 id : SV_DispatchThreadID)
     float3 velocityNew = velocity + acceleration * deltaTime;
     Velocities[id.x] = velocityNew;
 
-    // Quick test -- apply some drag to airborne fluid particles
-    if (neighbourCount < 8)
-    {
-        Velocities[id.x] -= Velocities[id.x] * deltaTime * 0.75;
-    }
+    // Quadratic air drag on all particles (real aerodynamic drag, relative to wind)
+    float3 relVel = velocity - windVector;
+    float sqrSpeed = dot(relVel, relVel);
+    float speed = sqrt(sqrSpeed);
+    float rho_humid = rho_air * (1.0f + 0.015f * humidity);
+    float particleCrossSection = 3.14159f * _ParticleRadius * _ParticleRadius;
+    float particleMass = targetDensity * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f);
+    float dragMag = 0.5f * rho_humid * Cd_fluid * particleCrossSection * sqrSpeed;
+    if (speed > 0.001f)
+        Velocities[id.x] -= (relVel / speed) * (dragMag / particleMass) * deltaTime;
 
 
     // ---- Handle spawning of white particles from the current fluid particle ----
