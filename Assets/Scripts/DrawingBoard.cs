@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.IO;
 
 public class DrawingBoard : MonoBehaviour
 {
@@ -10,6 +11,9 @@ public class DrawingBoard : MonoBehaviour
 
     [HideInInspector]
     public RenderTexture paintAmountTexture;
+
+    [HideInInspector]
+    public RenderTexture paintColorTexture;
 
     void Awake()
     {
@@ -25,6 +29,12 @@ public class DrawingBoard : MonoBehaviour
         paintAmountTexture.filterMode = FilterMode.Bilinear;
         paintAmountTexture.wrapMode = TextureWrapMode.Clamp;
         paintAmountTexture.Create();
+
+        paintColorTexture = new RenderTexture(textureResolution, textureResolution, 0, RenderTextureFormat.ARGBFloat);
+        paintColorTexture.enableRandomWrite = true;
+        paintColorTexture.filterMode = FilterMode.Bilinear;
+        paintColorTexture.wrapMode = TextureWrapMode.Clamp;
+        paintColorTexture.Create();
 
         // Clear to white (clean board)
         ClearBoard();
@@ -71,7 +81,35 @@ public class DrawingBoard : MonoBehaviour
             GL.Clear(true, true, Color.clear);
         }
 
+        if (paintColorTexture != null)
+        {
+            RenderTexture.active = paintColorTexture;
+            GL.Clear(true, true, Color.clear);
+        }
+
         RenderTexture.active = prev;
+    }
+
+    public void SaveBoardImage()
+    {
+        if (boardTexture == null) return;
+
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = boardTexture;
+
+        Texture2D image = new Texture2D(boardTexture.width, boardTexture.height, TextureFormat.RGBA32, false);
+        image.ReadPixels(new Rect(0, 0, boardTexture.width, boardTexture.height), 0, 0);
+        image.Apply();
+
+        string folder = Path.Combine(Application.dataPath, "..", "SavedBoards");
+        Directory.CreateDirectory(folder);
+        string fileName = "board_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png";
+        string path = Path.Combine(folder, fileName);
+        File.WriteAllBytes(path, image.EncodeToPNG());
+
+        RenderTexture.active = prev;
+        Destroy(image);
+        Debug.Log("Saved board image: " + path);
     }
 
     void OnDestroy()
@@ -84,6 +122,11 @@ public class DrawingBoard : MonoBehaviour
         if (paintAmountTexture != null)
         {
             paintAmountTexture.Release();
+        }
+
+        if (paintColorTexture != null)
+        {
+            paintColorTexture.Release();
         }
     }
 }

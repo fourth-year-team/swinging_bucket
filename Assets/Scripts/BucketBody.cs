@@ -86,6 +86,14 @@ public class BucketBody : MonoBehaviour
         prevMatrix = transform.worldToLocalMatrix;
     }
 
+    public void ResetState()
+    {
+        paintMass = 10f;
+        mass = emptyMass + paintMass;
+        linearVelocity = Vector3.zero;
+        angularVelocity = Vector3.zero;
+    }
+
     public void Integrate(Vector3 gravity, float dt, float damping)
     {
         Vector3 velocity = (position - previousPosition);

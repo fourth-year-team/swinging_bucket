@@ -249,6 +249,10 @@ namespace Seb.Fluid.Simulation
 				{
 					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
 				}
+				if (drawingBoard.paintColorTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintColorTexture", drawingBoard.paintColorTexture);
+				}
 			}
 
 			// Render to 3d tex kernel
@@ -480,6 +484,10 @@ namespace Seb.Fluid.Simulation
 				{
 					compute.SetTexture(updatePositionsKernel, "_BoardPaintAmountTexture", drawingBoard.paintAmountTexture);
 				}
+				if (drawingBoard.paintColorTexture != null)
+				{
+					compute.SetTexture(updatePositionsKernel, "_BoardPaintColorTexture", drawingBoard.paintColorTexture);
+				}
 
 				SurfaceMaterial mat = drawingBoard.GetComponent<SurfaceMaterial>();
 				if (mat != null)
@@ -536,29 +544,44 @@ namespace Seb.Fluid.Simulation
 			isPaused = false;
 		}
 
-		public void ResetSimulation()
-		{
-			SetInitialBufferData(spawnData);
-			if (drawingBoard != null)
-				drawingBoard.ClearBoard();
-			if (renderToTex3D)
-			{
-				RunSimulationFrame(0);
-			}
-		}
+        public void ResetSimulation()
+        {
+            SetInitialBufferData(spawnData);
+            if (drawingBoard != null)
+                drawingBoard.ClearBoard();
+            if (renderToTex3D)
+            {
+                RunSimulationFrame(0);
+            }
+        }
 
-		public void FullReset()
-		{
-			isPaused = true;
-			HasSpawned = false;
-			simTimer = 0;
+        public void FullReset()
+        {
+            spawnData = spawner.GetSpawnData();
+            SetInitialBufferData(spawnData);
+            if (drawingBoard != null)
+                drawingBoard.ClearBoard();
+            if (renderToTex3D)
+            {
+                RunSimulationFrame(0);
+            }
+            HasSpawned = false;
+            isPaused = true;
+            simTimer = 0;
+        }
 
-			ReleaseResources();
-			Initialize();
+		//public void FullReset()
+		//{
+		//	isPaused = true;
+		//	HasSpawned = false;
+		//	simTimer = 0;
 
-			if (drawingBoard != null)
-				drawingBoard.ClearBoard();
-		}
+		//	ReleaseResources();
+		//	Initialize();
+
+		//	if (drawingBoard != null)
+		//		drawingBoard.ClearBoard();
+		//}
 
 		public void ReleaseResources()
 		{

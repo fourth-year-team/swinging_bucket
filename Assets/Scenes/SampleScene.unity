@@ -200,8 +200,8 @@ MonoBehaviour:
   topY: 5.25
   bottomRadius: 1.75
   topRadius: 1.95
-  holeEnabled: 1
-  holeRadius: 0.2
+  holeEnabled: 0
+  holeRadius: 0.3
   holeLocalOffset: {x: 0, y: 0}
   emptyMass: 10
   paintLeakRate: 1
@@ -1861,7 +1861,7 @@ MonoBehaviour:
   startTheta: 30
   startPhi: 0
   inital_offset: {x: 10, y: 0, z: 0}
-  angularMotion: 0
+  angularMotion: 1
   theta: 0
   phi: 0
   anchor: {fileID: 1511524331}

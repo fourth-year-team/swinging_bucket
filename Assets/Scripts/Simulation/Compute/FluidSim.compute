@@ -72,6 +72,7 @@ float3 _BoundsMax;
 // Drawing board settings
 RWTexture2D<float4> _BoardTexture;
 RWTexture2D<float> _BoardPaintAmountTexture;
+RWTexture2D<float4> _BoardPaintColorTexture;
 float3 _BoardCenter;
 float  _BoardTopY;
 float3 _BoardHalfSize;
@@ -133,6 +134,86 @@ float Remap01(float val, float minVal, float maxVal)
     return saturate((val - minVal) / (maxVal - minVal));
 }
 
+float3 RGBToRYB(float3 rgb)
+{
+    rgb = saturate(rgb);
+
+    float white = min(rgb.r, min(rgb.g, rgb.b));
+    rgb -= white;
+
+    float maxRgb = max(rgb.r, max(rgb.g, rgb.b));
+
+    float yellow = min(rgb.r, rgb.g);
+    rgb.r -= yellow;
+    rgb.g -= yellow;
+
+    if (rgb.b > 0.0f && rgb.g > 0.0f)
+    {
+        rgb.b *= 0.5f;
+        rgb.g *= 0.5f;
+    }
+
+    yellow += rgb.g;
+    rgb.b += rgb.g;
+
+    float maxRyb = max(rgb.r, max(yellow, rgb.b));
+    if (maxRyb > 0.0f)
+    {
+        float scale = maxRgb / maxRyb;
+        rgb.r *= scale;
+        yellow *= scale;
+        rgb.b *= scale;
+    }
+
+    return saturate(float3(rgb.r + white, yellow + white, rgb.b + white));
+}
+
+float3 RYBToRGB(float3 ryb)
+{
+    ryb = saturate(ryb);
+
+    float white = min(ryb.r, min(ryb.g, ryb.b));
+    ryb -= white;
+
+    float maxRyb = max(ryb.r, max(ryb.g, ryb.b));
+
+    float green = min(ryb.g, ryb.b);
+    ryb.g -= green;
+    ryb.b -= green;
+
+    if (ryb.b > 0.0f && green > 0.0f)
+    {
+        ryb.b *= 2.0f;
+        green *= 2.0f;
+    }
+
+    ryb.r += ryb.g;
+    green += ryb.g;
+
+    float maxRgb = max(ryb.r, max(green, ryb.b));
+    if (maxRgb > 0.0f)
+    {
+        float scale = maxRyb / maxRgb;
+        ryb.r *= scale;
+        green *= scale;
+        ryb.b *= scale;
+    }
+
+    return saturate(float3(ryb.r + white, green + white, ryb.b + white));
+}
+
+float3 NormalizePigmentMix(float3 pigment)
+{
+    float white = min(pigment.r, min(pigment.g, pigment.b));
+    float3 chroma = pigment - white;
+    float maxChroma = max(chroma.r, max(chroma.g, chroma.b));
+
+    if (maxChroma > 1e-5f)
+        chroma /= maxChroma;
+
+    return saturate(chroma + white);
+}
+
 void PaintBoard(float3 pos, float3 vel, float minX, float minZ, float depositScale)
 {
     float u = (pos.x - minX) / (_BoardHalfSize.x * 2.0);
@@ -163,10 +244,16 @@ void PaintBoard(float3 pos, float3 vel, float minX, float minZ, float depositSca
                 float addAmount = saturate(falloff * depositScale * saturate((impactSpeed + tangentSpeed * 0.25f) * 0.18f)) * 0.35f;
                 if (addAmount > 0.0f)
                 {
-                    float amount = saturate(_BoardPaintAmountTexture[p] + addAmount);
-                    _BoardPaintAmountTexture[p] = amount;
+                    float totalAmount = _BoardPaintAmountTexture[p] + addAmount;
+                    float4 paintColor = saturate(_PaintColor);
+                    float4 accumulatedColor = _BoardPaintColorTexture[p] + float4(RGBToRYB(paintColor.rgb), paintColor.a) * addAmount;
+                    float4 mixedPigment = accumulatedColor / max(totalAmount, 1e-6f);
+                    float3 mixedColor = RYBToRGB(NormalizePigmentMix(mixedPigment.rgb));
+                    float visibleCoverage = saturate(totalAmount);
 
-                    _BoardTexture[p] = float4(lerp(float3(1.0f, 1.0f, 1.0f), _PaintColor.rgb, saturate(amount)), 1.0f);
+                    _BoardPaintAmountTexture[p] = totalAmount;
+                    _BoardPaintColorTexture[p] = accumulatedColor;
+                    _BoardTexture[p] = float4(lerp(float3(1.0f, 1.0f, 1.0f), mixedColor, visibleCoverage), 1.0f);
                 }
             }
         }
