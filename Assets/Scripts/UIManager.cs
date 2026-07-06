@@ -1,6 +1,7 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using Seb.Fluid.Simulation;
 
 public class UIManager : MonoBehaviour
 {
@@ -22,10 +23,9 @@ public class UIManager : MonoBehaviour
     };
 
     private Canvas canvas;
-    private GameObject menuPanel;
     private GameObject hudPanel;
     private GameObject controlPanel;
-    private GameObject respawnButtonGO;
+    private GameObject sidePanel;
     private Image selectedSwatch;
     private Font uiFont;
 
@@ -35,6 +35,12 @@ public class UIManager : MonoBehaviour
     private Text thetaSliderValue, phiSliderValue;
     private Rope rope;
     private BucketBody bucket;
+    private FluidSim fluidSim;
+    private bool particlesSpawned;
+
+    private InputField gravityInput, smoothingRadiusInput, viscosityInput;
+    private Slider dampingSlider;
+    private Text dampingValueText, particleCountText;
 
     private const float ThetaMin = 5f;
     private const float ThetaMax = 85f;
@@ -53,9 +59,8 @@ public class UIManager : MonoBehaviour
 
         CreateCanvas();
         CreateHUD();
-        CreateControlPanel();
-        CreateRespawnButton();
-        CreateMenu();
+        //CreateControlPanel();
+        CreateSidePanel();
 
         if (presetColors.Length > 0)
             SelectColor(presetColors[0]);
@@ -65,7 +70,9 @@ public class UIManager : MonoBehaviour
     {
         rope = FindFirstObjectByType<Rope>();
         bucket = FindFirstObjectByType<BucketBody>();
+        fluidSim = FindFirstObjectByType<FluidSim>();
         SyncAngleControlsFromRope();
+        SyncFluidSettings();
     }
 
     void Update()
@@ -83,6 +90,9 @@ public class UIManager : MonoBehaviour
         phiText.text = string.Format("{0:F1}\u00B0", phiDeg);
         paintText.text = string.Format("{0:F1} kg", bucket.paintMass);
         massText.text = string.Format("{0:F1} kg", bucket.mass);
+
+        if (particleCountText != null && fluidSim != null)
+            particleCountText.text = fluidSim.NumParticles.ToString();
     }
 
     static Font GetFont()
@@ -184,7 +194,7 @@ public class UIManager : MonoBehaviour
         GameObject tglLabel = new GameObject("TglLabel", typeof(Text));
         tglLabel.transform.SetParent(toggleBtn.transform, false);
         Text tglText = tglLabel.GetComponent<Text>();
-        tglText.text = "\u2212";
+        tglText.text = "\u2039";
         tglText.fontSize = 20;
         tglText.fontStyle = FontStyle.Bold;
         tglText.alignment = TextAnchor.MiddleCenter;
@@ -216,21 +226,21 @@ public class UIManager : MonoBehaviour
         clg.padding = new RectOffset(14, 14, 8, 10);
 
         AddSeparator();
-        thetaText = AddHUDLine("hudTheta", "\u03B8", "0.0\u00B0");
-        phiText = AddHUDLine("hudPhi", "\u03C6", "0.0\u00B0");
+        thetaText = AddHUDLine("hudTheta", "θ", "\u03B8", "0.0\u00B0");
+        phiText = AddHUDLine("hudPhi", "φ", "\u03C6", "0.0\u00B0");
         AddSeparator();
-        paintText = AddHUDLine("hudPaint", "Paint", "0.0 kg");
-        massText = AddHUDLine("hudMass", "Mass", "0.0 kg");
+        paintText = AddHUDLine("hudPaint", "💧", "Paint", "0.0 kg");
+        massText = AddHUDLine("hudMass", "🎒", "Mass", "0.0 kg");
 
         tglBtn.onClick.AddListener(() =>
         {
             bool show = !hudContent.activeSelf;
             hudContent.SetActive(show);
-            tglText.text = show ? "\u2212" : "+";
+            tglText.text = show ? "\u2039" : "+";
         });
     }
 
-
+    /*
     void CreateControlPanel()
     {
         controlPanel = new GameObject("ControlPanel", typeof(Image), typeof(VerticalLayoutGroup));
@@ -249,11 +259,11 @@ public class UIManager : MonoBehaviour
         VerticalLayoutGroup vlg = controlPanel.GetComponent<VerticalLayoutGroup>();
         vlg.childAlignment = TextAnchor.UpperLeft;
         vlg.childControlWidth = true;
-        vlg.childControlHeight = false;
+        vlg.childControlHeight = true;
         vlg.childForceExpandWidth = true;
         vlg.childForceExpandHeight = false;
         vlg.spacing = 10;
-        vlg.padding = new RectOffset(14, 14, 12, 12);
+        vlg.padding = new RectOffset(14, 14, 14, 14);
 
         GameObject titleGO = new GameObject("Title", typeof(Text));
         titleGO.transform.SetParent(controlPanel.transform, false);
@@ -278,56 +288,7 @@ public class UIManager : MonoBehaviour
             if (rope != null) rope.SetThetaPhiDegrees(thetaSlider != null ? thetaSlider.value : rope.startTheta, value);
         }, out phiSliderValue);
     }
-
-    void CreateRespawnButton()
-    {
-        respawnButtonGO = new GameObject("RespawnParticlesButton", typeof(Image), typeof(Button), typeof(RespawnButton));
-        respawnButtonGO.transform.SetParent(canvas.transform, false);
-        respawnButtonGO.SetActive(false);
-
-        RectTransform rt = respawnButtonGO.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0.5f, 0);
-        rt.anchorMax = new Vector2(0.5f, 0);
-        rt.pivot = new Vector2(0.5f, 0);
-        rt.anchoredPosition = new Vector2(0, 34);
-        rt.sizeDelta = new Vector2(300, 64);
-
-        Image bg = respawnButtonGO.GetComponent<Image>();
-        bg.color = new Color(0.22f, 0.56f, 0.95f, 0.95f);
-
-        Button button = respawnButtonGO.GetComponent<Button>();
-        button.targetGraphic = bg;
-        ColorBlock cb = button.colors;
-        cb.normalColor = new Color(0.22f, 0.56f, 0.95f, 0.95f);
-        cb.highlightedColor = new Color(0.35f, 0.65f, 1f, 1f);
-        cb.pressedColor = new Color(0.14f, 0.38f, 0.72f, 1f);
-        cb.disabledColor = new Color(0.22f, 0.22f, 0.26f, 0.65f);
-        button.colors = cb;
-
-        GameObject labelGO = new GameObject("Label", typeof(Text));
-        labelGO.transform.SetParent(respawnButtonGO.transform, false);
-        Text label = labelGO.GetComponent<Text>();
-        label.text = "RESPAWN PARTICLES";
-        label.fontSize = 24;
-        label.fontStyle = FontStyle.Bold;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = Color.white;
-        label.font = uiFont;
-
-        RectTransform labelRt = labelGO.GetComponent<RectTransform>();
-        labelRt.anchorMin = Vector2.zero;
-        labelRt.anchorMax = Vector2.one;
-        labelRt.offsetMin = Vector2.zero;
-        labelRt.offsetMax = Vector2.zero;
-
-        RespawnButton respawnButton = respawnButtonGO.GetComponent<RespawnButton>();
-        button.onClick.AddListener(() =>
-        {
-            respawnButton.Spawn();
-            button.interactable = false;
-            label.text = "PARTICLES SPAWNED";
-        });
-    }
+    */
 
     Slider AddAngleSlider(Transform parent, string label, float min, float max, float initialValue, System.Action<float> onChanged, out Text valueText)
     {
@@ -473,7 +434,7 @@ public class UIManager : MonoBehaviour
         sepLE.flexibleHeight = 0;
     }
 
-    Text AddHUDLine(string name, string label, string initialValue)
+    Text AddHUDLine(string name, string icon, string label, string initialValue)
     {
         GameObject row = new GameObject(name, typeof(HorizontalLayoutGroup));
         row.transform.SetParent(hudContent.transform, false);
@@ -489,15 +450,27 @@ public class UIManager : MonoBehaviour
         rowLE.preferredHeight = 32;
         rowLE.flexibleHeight = 0;
 
-        // Indicator dot
-        GameObject dot = new GameObject("Dot", typeof(Image));
-        dot.transform.SetParent(row.transform, false);
-        Image dotImg = dot.GetComponent<Image>();
-        dotImg.color = new Color(0.22f, 0.56f, 0.95f);
-        LayoutElement dotLE = dot.AddComponent<LayoutElement>();
-        dotLE.preferredWidth = 8;
-        dotLE.preferredHeight = 8;
-        dotLE.flexibleWidth = 0;
+        // Icon
+        GameObject iconBox = new GameObject("IconBox", typeof(Image));
+        iconBox.transform.SetParent(row.transform, false);
+        Image iconBg = iconBox.GetComponent<Image>();
+        iconBg.color = new Color(0.22f, 0.56f, 0.95f);
+        LayoutElement iconLE = iconBox.AddComponent<LayoutElement>();
+        iconLE.preferredWidth = 32;
+        iconLE.preferredHeight = 32;
+        iconLE.flexibleWidth = 0;
+
+        GameObject iconTxtGO = new GameObject("IconGlyph", typeof(Text));
+        iconTxtGO.transform.SetParent(iconBox.transform, false);
+        Text iconTxt = iconTxtGO.GetComponent<Text>();
+        iconTxt.text = icon; // "θ", "φ", "💧", "🎒" etc
+        iconTxt.font = uiFont;
+        iconTxt.fontSize = 16;
+        iconTxt.alignment = TextAnchor.MiddleCenter;
+        iconTxt.color = Color.white;
+        RectTransform itr = iconTxtGO.GetComponent<RectTransform>();
+        itr.anchorMin = Vector2.zero; itr.anchorMax = Vector2.one;
+        itr.offsetMin = Vector2.zero; itr.offsetMax = Vector2.zero;
 
         // Label
         GameObject labelGO = new GameObject("Label", typeof(Text));
@@ -506,7 +479,7 @@ public class UIManager : MonoBehaviour
         labelText.text = label;
         labelText.fontSize = 18;
         labelText.alignment = TextAnchor.MiddleLeft;
-        labelText.color = Color.black;
+        labelText.color = new Color(0.9f, 0.9f, 0.95f, 1.0f);
         labelText.font = uiFont;
 
         LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
@@ -521,7 +494,7 @@ public class UIManager : MonoBehaviour
         valText.fontSize = 20;
         valText.fontStyle = FontStyle.Bold;
         valText.alignment = TextAnchor.MiddleRight;
-        valText.color = Color.black;
+        valText.color = new Color(0.9f, 0.9f, 0.95f, 1.0f); ;
         valText.font = uiFont;
 
         LayoutElement valLE = valGO.AddComponent<LayoutElement>();
@@ -530,76 +503,148 @@ public class UIManager : MonoBehaviour
         return valText;
     }
 
-    void CreateMenu()
+    void CreateSidePanel()
     {
-        menuPanel = new GameObject("MenuPanel", typeof(Image), typeof(VerticalLayoutGroup));
-        menuPanel.transform.SetParent(canvas.transform, false);
-        RectTransform prt = menuPanel.GetComponent<RectTransform>();
-        prt.anchorMin = Vector2.zero;
-        prt.anchorMax = Vector2.one;
-        prt.offsetMin = Vector2.zero;
-        prt.offsetMax = Vector2.zero;
+        int margin = 10;
+        int width = 350;
+        int radius = 8;
+        int borderW = 2;
+        Color bgColor = new Color(0.08f, 0.09f, 0.11f, 0.94f);
+        Sprite roundedSprite = BuildRoundedSprite(radius, borderW, bgColor, Color.black);
 
-        Image bg = menuPanel.GetComponent<Image>();
-        bg.color = new Color(0.12f, 0.12f, 0.14f, 0.92f);
+        GameObject borderGO = new GameObject("SidePanel", typeof(Image), typeof(VerticalLayoutGroup));
+        borderGO.transform.SetParent(canvas.transform, false);
 
-        VerticalLayoutGroup vlg = menuPanel.GetComponent<VerticalLayoutGroup>();
-        vlg.childAlignment = TextAnchor.MiddleCenter;
+        RectTransform brt = borderGO.GetComponent<RectTransform>();
+        brt.anchorMin = new Vector2(1, 0);
+        brt.anchorMax = new Vector2(1, 1);
+        brt.pivot = new Vector2(1, 0.5f);
+        float rightOffset = margin;
+        brt.offsetMin = new Vector2(-width - rightOffset, margin);
+        brt.offsetMax = new Vector2(-rightOffset, -margin);
+
+        Image borderImg = borderGO.GetComponent<Image>();
+        borderImg.type = Image.Type.Sliced;
+        borderImg.sprite = roundedSprite;
+        borderImg.pixelsPerUnitMultiplier = 1;
+
+        VerticalLayoutGroup vlg = borderGO.GetComponent<VerticalLayoutGroup>();
+        vlg.childAlignment = TextAnchor.UpperCenter;
         vlg.childControlWidth = true;
         vlg.childControlHeight = true;
         vlg.childForceExpandWidth = true;
         vlg.childForceExpandHeight = false;
-        vlg.spacing = 20;
-        vlg.padding = new RectOffset(80, 80, 60, 60);
+        vlg.spacing = 10;
+        vlg.padding = new RectOffset(borderW + 12, borderW + 12, borderW + 12, borderW + 12);
 
-        AddTitle(menuPanel.transform);
-        AddColorPicker(menuPanel.transform);
-        AddStartButton(menuPanel.transform);
+        sidePanel = borderGO;
+
+        AddColorPicker(sidePanel.transform);
+        AddStartButton(sidePanel.transform);
+        AddSpawnButton(sidePanel.transform);
+        AddHoleSettings(sidePanel.transform);
+        AddFluidSettings(sidePanel.transform);
     }
 
-    void AddTitle(Transform parent)
+    static Sprite BuildRoundedSprite(int r, int border, Color fill, Color outline)
     {
-        GameObject titleGO = new GameObject("Title", typeof(Text));
-        titleGO.transform.SetParent(parent, false);
+        int outerR = r + border;
+        int size = outerR * 2 + 1;
 
-        Text title = titleGO.GetComponent<Text>();
-        title.text = "SWINGING BUCKET PAINTER";
-        title.fontSize = 48;
-        title.fontStyle = FontStyle.Bold;
-        title.alignment = TextAnchor.MiddleCenter;
-        title.color = new Color(0.9f, 0.9f, 0.95f);
-        title.font = uiFont;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
 
-        LayoutElement le = titleGO.AddComponent<LayoutElement>();
-        le.preferredHeight = 80;
-        le.flexibleHeight = 0;
+        int left = outerR;
+        int right = size - 1 - outerR;
+        int bottom = outerR;
+        int top = size - 1 - outerR;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                bool insideInner = IsInsideRoundedRect(x, y, size, r);
+                bool insideOuter = IsInsideRoundedRect(x, y, size, outerR);
+
+                Color pixel;
+                if (insideInner)
+                    pixel = fill;
+                else if (insideOuter)
+                    pixel = outline;
+                else
+                    pixel = Color.clear;
+
+                tex.SetPixel(x, y, pixel);
+            }
+        }
+        tex.Apply();
+
+        Vector4 sprBorder = new Vector4(outerR, outerR, outerR, outerR);
+        Rect rect = new Rect(0, 0, size, size);
+        return Sprite.Create(tex, rect, Vector2.one * 0.5f, 100, 0, SpriteMeshType.Tight, sprBorder);
+    }
+
+    static bool IsInsideRoundedRect(int x, int y, int size, int r)
+    {
+        int left = r;
+        int right = size - 1 - r;
+        int bottom = r;
+        int top = size - 1 - r;
+
+        if (x >= left && x <= right && y >= bottom && y <= top)
+            return true;
+
+        if (x < left && y >= bottom && y <= top)
+            return true;
+        if (x > right && y >= bottom && y <= top)
+            return true;
+        if (y < bottom && x >= left && x <= right)
+            return true;
+        if (y > top && x >= left && x <= right)
+            return true;
+
+        if (x < left && y < bottom)
+            return (x - left) * (x - left) + (y - bottom) * (y - bottom) <= r * r;
+        if (x > right && y < bottom)
+            return (x - right) * (x - right) + (y - bottom) * (y - bottom) <= r * r;
+        if (x < left && y > top)
+            return (x - left) * (x - left) + (y - top) * (y - top) <= r * r;
+        if (x > right && y > top)
+            return (x - right) * (x - right) + (y - top) * (y - top) <= r * r;
+
+        return false;
     }
 
     void AddColorPicker(Transform parent)
     {
-        GameObject section = new GameObject("ColorSection", typeof(VerticalLayoutGroup));
+        GameObject section = new GameObject(
+            "ColorSection",
+            typeof(VerticalLayoutGroup));
         section.transform.SetParent(parent, false);
 
         VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
         slg.childAlignment = TextAnchor.MiddleCenter;
         slg.childControlWidth = true;
-        slg.childControlHeight = false;
-        slg.spacing = 16;
+        slg.childControlHeight = true;
+        slg.spacing = 0;
 
         LayoutElement sectionLE = section.AddComponent<LayoutElement>();
-        sectionLE.flexibleHeight = 1;
+        sectionLE.preferredHeight = 160f;
+        sectionLE.minHeight = 160f;
+        sectionLE.flexibleHeight = 0;
 
         GameObject labelGO = new GameObject("ColorLabel", typeof(Text));
         labelGO.transform.SetParent(section.transform, false);
         Text label = labelGO.GetComponent<Text>();
-        label.text = "Select Paint Color";
-        label.fontSize = 26;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = new Color(0.8f, 0.8f, 0.85f);
+        label.text = "🎨  SELECT PAINT COLOR";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleLeft;
+        label.color = new Color(0.85f, 0.85f, 0.9f);
         label.font = uiFont;
 
         LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
-        labelLE.preferredHeight = 40;
+        labelLE.preferredHeight = 13;
         labelLE.flexibleHeight = 0;
 
         int cols = 6;
@@ -610,12 +655,12 @@ public class UIManager : MonoBehaviour
         glg.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         glg.constraintCount = cols;
         glg.childAlignment = TextAnchor.MiddleCenter;
-        glg.cellSize = new Vector2(80, 80);
-        glg.spacing = new Vector2(12, 12);
-        glg.padding = new RectOffset(10, 10, 10, 10);
+        glg.cellSize = new Vector2(32, 32);
+        glg.spacing = new Vector2(6, 6);
+        glg.padding = new RectOffset(4, 4, 4, 4);
 
         int rows = Mathf.CeilToInt((float)presetColors.Length / cols);
-        float gridHeight = rows * 80 + (rows - 1) * 12 + 20;
+        float gridHeight = rows * glg.cellSize.y + (rows - 1) * glg.spacing.y + glg.padding.top + glg.padding.bottom;
 
         LayoutElement gridLE = gridGO.AddComponent<LayoutElement>();
         gridLE.preferredHeight = gridHeight;
@@ -631,6 +676,9 @@ public class UIManager : MonoBehaviour
         swatchGO.transform.SetParent(parent, false);
 
         Image swatch = swatchGO.GetComponent<Image>();
+        swatch.sprite = BuildRoundedSprite(6, 0, Color.white, Color.clear);
+        swatch.type = Image.Type.Sliced;
+        swatch.preserveAspect = true;
         swatch.color = color;
 
         Button btn = swatchGO.AddComponent<Button>();
@@ -652,8 +700,8 @@ public class UIManager : MonoBehaviour
         if (selectedSwatch != null)
             selectedSwatch.rectTransform.localScale = Vector3.one;
 
-        if (menuPanel == null) return;
-        Transform grid = menuPanel.transform.Find("ColorSection/ColorGrid");
+        if (sidePanel == null) return;
+        Transform grid = sidePanel.transform.Find("ColorSection/ColorGrid");
         if (grid == null) return;
 
         foreach (Transform child in grid)
@@ -670,31 +718,530 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    void AddHoleSettings(Transform parent)
+    {
+        GameObject section = CreateCard(parent, "HOLE SETTINGS", "");
+        section.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+
+        Text sectionTitle = section.transform.Find("Header/Title").GetComponent<Text>();
+        sectionTitle.text = "HOLE SETTINGS";
+        sectionTitle.fontSize = 13;
+        sectionTitle.fontStyle = FontStyle.Bold;
+        sectionTitle.alignment = TextAnchor.MiddleLeft;
+        sectionTitle.color = new Color(0.85f, 0.85f, 0.9f);
+
+        // Hide the separate icon column since the emoji is now baked into the title text
+        Transform iconT = section.transform.Find("Header/Icon");
+        if (iconT != null) iconT.gameObject.SetActive(false);
+
+        VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
+        slg.childAlignment = TextAnchor.UpperLeft;
+        slg.childControlWidth = true;
+        slg.childControlHeight = true;
+        slg.spacing = 12;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 0;
+
+        // Toggle row
+        GameObject toggleRow = new GameObject("ToggleRow", typeof(HorizontalLayoutGroup));
+        toggleRow.transform.SetParent(section.transform, false);
+
+        HorizontalLayoutGroup tlg = toggleRow.GetComponent<HorizontalLayoutGroup>();
+        tlg.childAlignment = TextAnchor.MiddleLeft;
+        tlg.childControlWidth = true;
+        tlg.childControlHeight = true;
+        tlg.childForceExpandWidth = false;
+        tlg.spacing = 4;
+
+        GameObject toggleGO = new GameObject("Toggle", typeof(Toggle), typeof(Image));
+        toggleGO.transform.SetParent(toggleRow.transform, false);
+        Toggle toggle = toggleGO.GetComponent<Toggle>();
+        Image toggleBg = toggleGO.GetComponent<Image>();
+        toggleBg.color = new Color(0.2f, 0.2f, 0.22f);
+        LayoutElement toggleLE = toggleGO.AddComponent<LayoutElement>();
+        toggleLE.preferredWidth = 18;
+        toggleLE.preferredHeight = 18;
+        toggleLE.flexibleWidth = 0;
+        toggleLE.flexibleHeight = 0;
+
+        // Checkmark
+        GameObject checkGO = new GameObject("Checkmark", typeof(Image));
+        checkGO.transform.SetParent(toggleGO.transform, false);
+        Image checkImg = checkGO.GetComponent<Image>();
+        checkImg.color = new Color(0.22f, 0.56f, 0.95f);
+        RectTransform checkRt = checkGO.GetComponent<RectTransform>();
+        checkRt.anchorMin = Vector2.zero;
+        checkRt.anchorMax = Vector2.one;
+        checkRt.offsetMin = new Vector2(2, 2);
+        checkRt.offsetMax = new Vector2(-2, -2);
+        toggle.graphic = checkImg;
+        toggle.targetGraphic = toggleBg;
+        toggle.transition = Selectable.Transition.ColorTint;
+        ColorBlock tcb = toggle.colors;
+        tcb.highlightedColor = new Color(0.3f, 0.3f, 0.35f);
+        toggle.colors = tcb;
+
+        if (bucket != null) toggle.isOn = bucket.holeEnabled;
+
+        // Toggle label
+        GameObject toggleLabelGO = new GameObject("Label", typeof(Text));
+        toggleLabelGO.transform.SetParent(toggleRow.transform, false);
+        Text toggleLabel = toggleLabelGO.GetComponent<Text>();
+        toggleLabel.text = "Hole Open";
+        toggleLabel.fontSize = 18;
+        toggleLabel.alignment = TextAnchor.MiddleLeft;
+        toggleLabel.color = new Color(0.85f, 0.86f, 0.92f);
+        toggleLabel.font = uiFont;
+        LayoutElement toggleLabelLE = toggleLabelGO.AddComponent<LayoutElement>();
+        toggleLabelLE.flexibleWidth = 1;
+
+        toggle.onValueChanged.AddListener(v =>
+        {
+            if (bucket != null) bucket.holeEnabled = v;
+        });
+
+        // Radius slider
+        GameObject sliderRow = new GameObject("RadiusRow", typeof(VerticalLayoutGroup));
+        sliderRow.transform.SetParent(section.transform, false);
+
+        VerticalLayoutGroup slgRow = sliderRow.GetComponent<VerticalLayoutGroup>();
+        slgRow.childControlWidth = true;
+        slgRow.childControlHeight = true;
+        slgRow.spacing = 2;
+
+        LayoutElement sliderRowLE = sliderRow.AddComponent<LayoutElement>();
+        sliderRowLE.preferredHeight = 46;
+
+        GameObject sliderLabelGO = new GameObject("Label", typeof(Text));
+        sliderLabelGO.transform.SetParent(sliderRow.transform, false);
+        Text sliderLabel = sliderLabelGO.GetComponent<Text>();
+        sliderLabel.text = "Radius";
+        sliderLabel.fontSize = 16;
+        sliderLabel.fontStyle = FontStyle.Bold;
+        sliderLabel.alignment = TextAnchor.MiddleLeft;
+        sliderLabel.color = new Color(0.85f, 0.86f, 0.92f);
+        sliderLabel.font = uiFont;
+        LayoutElement sliderLabelLE = sliderLabelGO.AddComponent<LayoutElement>();
+        sliderLabelLE.preferredHeight = 16;
+
+        GameObject sliderGO = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
+        sliderGO.transform.SetParent(sliderRow.transform, false);
+        Slider slider = sliderGO.GetComponent<Slider>();
+        slider.minValue = 0.10f;
+        slider.maxValue = 1.0f;
+        slider.wholeNumbers = false;
+
+        RectTransform srt = sliderGO.GetComponent<RectTransform>();
+        srt.sizeDelta = new Vector2(0, 24);
+
+        GameObject bgGO = new GameObject("Background", typeof(Image));
+        bgGO.transform.SetParent(sliderGO.transform, false);
+        Image bg = bgGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(8, 0, new Color(0, 0, 0, 0.35f), Color.clear);   // ✅ rounded track
+        RectTransform bgRt = bgGO.GetComponent<RectTransform>();
+        bgRt.anchorMin = Vector2.zero;
+        bgRt.anchorMax = Vector2.one;
+        bgRt.offsetMin = Vector2.zero;
+        bgRt.offsetMax = Vector2.zero;
+
+        GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(sliderGO.transform, false);
+        RectTransform fillAreaRt = fillArea.GetComponent<RectTransform>();
+        fillAreaRt.anchorMin = new Vector2(0, 0);
+        fillAreaRt.anchorMax = new Vector2(1, 1);
+        fillAreaRt.offsetMin = Vector2.zero;
+        fillAreaRt.offsetMax = Vector2.zero;
+
+        GameObject fillGO = new GameObject("Fill", typeof(Image));
+        fillGO.transform.SetParent(fillArea.transform, false);
+        Image fillImg = fillGO.GetComponent<Image>();
+        fillImg.type = Image.Type.Sliced;
+        fillImg.sprite = BuildRoundedSprite(8, 0, new Color(0.22f, 0.56f, 0.95f), Color.clear);   // ✅ rounded fill, same radius as track
+        RectTransform fillRt = fillGO.GetComponent<RectTransform>();
+        fillRt.anchorMin = Vector2.zero;
+        fillRt.anchorMax = Vector2.one;
+        fillRt.offsetMin = Vector2.zero;
+        fillRt.offsetMax = Vector2.zero;
+
+        GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(sliderGO.transform, false);
+        RectTransform handleAreaRt = handleArea.GetComponent<RectTransform>();
+        handleAreaRt.anchorMin = Vector2.zero;
+        handleAreaRt.anchorMax = Vector2.one;
+        handleAreaRt.offsetMin = new Vector2(10, 0);
+        handleAreaRt.offsetMax = new Vector2(-10, 0);
+
+        GameObject handleGO = new GameObject("Handle", typeof(Image));
+        handleGO.transform.SetParent(handleArea.transform, false);
+        Image handleImg = handleGO.GetComponent<Image>();
+        handleImg.color = new Color(1, 1, 1, 0f);
+        RectTransform handleRt = handleGO.GetComponent<RectTransform>();
+        handleRt.sizeDelta = new Vector2(16, 16);
+
+        slider.fillRect = fillRt;
+        slider.handleRect = handleRt;
+        slider.targetGraphic = handleImg;
+        slider.direction = Slider.Direction.LeftToRight;
+
+        GameObject valueGO = new GameObject("Value", typeof(Text));
+        valueGO.transform.SetParent(sliderRow.transform, false);
+        Text valueText = valueGO.GetComponent<Text>();
+        valueText.fontSize = 14;
+        valueText.alignment = TextAnchor.MiddleRight;
+        valueText.color = new Color(0.85f, 0.86f, 0.92f);
+        valueText.font = uiFont;
+        LayoutElement valueLE = valueGO.AddComponent<LayoutElement>();
+        valueLE.preferredHeight = 14;
+
+        float initialVal = bucket != null ? bucket.holeRadius : 0.3f;
+        slider.SetValueWithoutNotify(initialVal);
+        valueText.text = string.Format("{0:F2}m", initialVal);
+
+        slider.onValueChanged.AddListener(v =>
+        {
+            valueText.text = string.Format("{0:F2}m", v);
+            if (bucket != null) bucket.holeRadius = v;
+        });
+    }
+
+    void AddFluidSettings(Transform parent)
+    {
+        GameObject section = CreateCard(parent, "FLUID SETTINGS", "");
+        section.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+
+        Text sectionTitle = section.transform.Find("Header/Title").GetComponent<Text>();
+        sectionTitle.text = "FLUID SETTINGS";
+        sectionTitle.fontSize = 13;
+        sectionTitle.fontStyle = FontStyle.Bold;
+        sectionTitle.alignment = TextAnchor.MiddleLeft;
+        sectionTitle.color = new Color(0.85f, 0.85f, 0.9f);
+
+        Transform iconT = section.transform.Find("Header/Icon");
+        if (iconT != null) iconT.gameObject.SetActive(false);
+
+        VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
+        slg.childAlignment = TextAnchor.UpperLeft;
+        slg.childControlWidth = true;
+        slg.childControlHeight = true;
+        slg.spacing = 12;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 0;
+
+        // Gravity input
+        gravityInput = AddInputFieldRow(section.transform, "GravityRow", "Gravity", "-10", v =>
+        {
+            if (fluidSim != null && float.TryParse(v, out float val)) fluidSim.gravity = val;
+        });
+
+        // Smoothing Radius input
+        smoothingRadiusInput = AddInputFieldRow(section.transform, "SmoothingRadiusRow", "Smoothing Radius", "0.200", v =>
+        {
+            if (fluidSim != null && float.TryParse(v, out float val)) fluidSim.smoothingRadius = val;
+        });
+
+        // Viscosity input
+        viscosityInput = AddInputFieldRow(section.transform, "ViscosityRow", "Viscosity", "0.00", v =>
+        {
+            if (fluidSim != null && float.TryParse(v, out float val)) fluidSim.viscosityStrength = val;
+        });
+
+        // Damping slider
+        GameObject dampingRow = new GameObject("DampingRow", typeof(VerticalLayoutGroup));
+        dampingRow.transform.SetParent(section.transform, false);
+
+        VerticalLayoutGroup dlg = dampingRow.GetComponent<VerticalLayoutGroup>();
+        dlg.childControlWidth = true;
+        dlg.childControlHeight = true;
+        dlg.spacing = 2;
+
+        LayoutElement dlgLE = dampingRow.AddComponent<LayoutElement>();
+        dlgLE.preferredHeight = 46;
+
+        GameObject dampingLabelGO = new GameObject("Label", typeof(Text));
+        dampingLabelGO.transform.SetParent(dampingRow.transform, false);
+        Text dampingLabel = dampingLabelGO.GetComponent<Text>();
+        dampingLabel.text = "Damping";
+        dampingLabel.fontSize = 16;
+        dampingLabel.fontStyle = FontStyle.Bold;
+        dampingLabel.alignment = TextAnchor.MiddleLeft;
+        dampingLabel.color = new Color(0.85f, 0.86f, 0.92f);
+        dampingLabel.font = uiFont;
+        LayoutElement dampingLabelLE = dampingLabelGO.AddComponent<LayoutElement>();
+        dampingLabelLE.preferredHeight = 16;
+
+        GameObject dampingSliderGO = new GameObject("Slider", typeof(RectTransform), typeof(Slider));
+        dampingSliderGO.transform.SetParent(dampingRow.transform, false);
+        dampingSlider = dampingSliderGO.GetComponent<Slider>();
+        dampingSlider.minValue = 0;
+        dampingSlider.maxValue = 1;
+        dampingSlider.wholeNumbers = false;
+
+        RectTransform dsrt = dampingSliderGO.GetComponent<RectTransform>();
+        dsrt.sizeDelta = new Vector2(0, 24);
+
+        GameObject dbgGO = new GameObject("Background", typeof(Image));
+        dbgGO.transform.SetParent(dampingSliderGO.transform, false);
+        Image dbg = dbgGO.GetComponent<Image>();
+        dbg.type = Image.Type.Sliced;
+        dbg.sprite = BuildRoundedSprite(8, 0, new Color(0, 0, 0, 0.35f), Color.clear);
+        RectTransform dbgRt = dbgGO.GetComponent<RectTransform>();
+        dbgRt.anchorMin = Vector2.zero;
+        dbgRt.anchorMax = Vector2.one;
+        dbgRt.offsetMin = Vector2.zero;
+        dbgRt.offsetMax = Vector2.zero;
+
+        GameObject dfillArea = new GameObject("Fill Area", typeof(RectTransform));
+        dfillArea.transform.SetParent(dampingSliderGO.transform, false);
+        RectTransform dfillAreaRt = dfillArea.GetComponent<RectTransform>();
+        dfillAreaRt.anchorMin = new Vector2(0, 0);
+        dfillAreaRt.anchorMax = new Vector2(1, 1);
+        dfillAreaRt.offsetMin = Vector2.zero;
+        dfillAreaRt.offsetMax = Vector2.zero;
+
+        GameObject dfillGO = new GameObject("Fill", typeof(Image));
+        dfillGO.transform.SetParent(dfillArea.transform, false);
+        Image dfillImg = dfillGO.GetComponent<Image>();
+        dfillImg.type = Image.Type.Sliced;
+        dfillImg.sprite = BuildRoundedSprite(8, 0, new Color(0.22f, 0.56f, 0.95f), Color.clear);
+        RectTransform dfillRt = dfillGO.GetComponent<RectTransform>();
+        dfillRt.anchorMin = Vector2.zero;
+        dfillRt.anchorMax = Vector2.one;
+        dfillRt.offsetMin = Vector2.zero;
+        dfillRt.offsetMax = Vector2.zero;
+
+        GameObject dhandleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        dhandleArea.transform.SetParent(dampingSliderGO.transform, false);
+        RectTransform dhandleAreaRt = dhandleArea.GetComponent<RectTransform>();
+        dhandleAreaRt.anchorMin = Vector2.zero;
+        dhandleAreaRt.anchorMax = Vector2.one;
+        dhandleAreaRt.offsetMin = new Vector2(10, 0);
+        dhandleAreaRt.offsetMax = new Vector2(-10, 0);
+
+        GameObject dhandleGO = new GameObject("Handle", typeof(Image));
+        dhandleGO.transform.SetParent(dhandleArea.transform, false);
+        Image dhandleImg = dhandleGO.GetComponent<Image>();
+        dhandleImg.color = new Color(1, 1, 1, 0f);
+        RectTransform dhandleRt = dhandleGO.GetComponent<RectTransform>();
+        dhandleRt.sizeDelta = new Vector2(16, 16);
+
+        dampingSlider.fillRect = dfillRt;
+        dampingSlider.handleRect = dhandleRt;
+        dampingSlider.targetGraphic = dhandleImg;
+        dampingSlider.direction = Slider.Direction.LeftToRight;
+
+        GameObject dvalueGO = new GameObject("Value", typeof(Text));
+        dvalueGO.transform.SetParent(dampingRow.transform, false);
+        dampingValueText = dvalueGO.GetComponent<Text>();
+        dampingValueText.fontSize = 14;
+        dampingValueText.alignment = TextAnchor.MiddleRight;
+        dampingValueText.color = new Color(0.85f, 0.86f, 0.92f);
+        dampingValueText.font = uiFont;
+        LayoutElement dvalueLE = dvalueGO.AddComponent<LayoutElement>();
+        dvalueLE.preferredHeight = 14;
+
+        float initialDamping = fluidSim != null ? fluidSim.collisionDamping : 0.95f;
+        dampingSlider.SetValueWithoutNotify(initialDamping);
+        dampingValueText.text = string.Format("{0:F2}", initialDamping);
+
+        dampingSlider.onValueChanged.AddListener(v =>
+        {
+            dampingValueText.text = string.Format("{0:F2}", v);
+            if (fluidSim != null) fluidSim.collisionDamping = v;
+        });
+
+        // Particle count (read-only)
+        GameObject particleRow = new GameObject("ParticleCountRow", typeof(HorizontalLayoutGroup));
+        particleRow.transform.SetParent(section.transform, false);
+
+        HorizontalLayoutGroup prlg = particleRow.GetComponent<HorizontalLayoutGroup>();
+        prlg.childAlignment = TextAnchor.MiddleLeft;
+        prlg.childControlWidth = true;
+        prlg.childControlHeight = true;
+        prlg.spacing = 4;
+
+        LayoutElement particleRowLE = particleRow.AddComponent<LayoutElement>();
+        particleRowLE.preferredHeight = 24;
+
+        GameObject particleLabelGO = new GameObject("Label", typeof(Text));
+        particleLabelGO.transform.SetParent(particleRow.transform, false);
+        Text particleLabel = particleLabelGO.GetComponent<Text>();
+        particleLabel.text = "Particle Count";
+        particleLabel.fontSize = 16;
+        particleLabel.fontStyle = FontStyle.Bold;
+        particleLabel.alignment = TextAnchor.MiddleLeft;
+        particleLabel.color = new Color(0.85f, 0.86f, 0.92f);
+        particleLabel.font = uiFont;
+        LayoutElement particleLabelLE = particleLabelGO.AddComponent<LayoutElement>();
+        particleLabelLE.flexibleWidth = 1;
+
+        GameObject particleValueGO = new GameObject("Value", typeof(Text));
+        particleValueGO.transform.SetParent(particleRow.transform, false);
+        particleCountText = particleValueGO.GetComponent<Text>();
+        particleCountText.text = fluidSim != null ? fluidSim.NumParticles.ToString() : "0";
+        particleCountText.fontSize = 16;
+        particleCountText.fontStyle = FontStyle.Bold;
+        particleCountText.alignment = TextAnchor.MiddleRight;
+        particleCountText.color = new Color(0.22f, 0.56f, 0.95f);
+        particleCountText.font = uiFont;
+        LayoutElement particleValueLE = particleValueGO.AddComponent<LayoutElement>();
+        particleValueLE.preferredWidth = 60;
+    }
+
+    InputField AddInputFieldRow(Transform parent, string name, string label, string initialValue, System.Action<string> onValueChanged)
+    {
+        GameObject row = new GameObject(name, typeof(VerticalLayoutGroup));
+        row.transform.SetParent(parent, false);
+
+        VerticalLayoutGroup vlg = row.GetComponent<VerticalLayoutGroup>();
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
+        vlg.spacing = 2;
+
+        LayoutElement rowLE = row.AddComponent<LayoutElement>();
+        rowLE.preferredHeight = 46;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(row.transform, false);
+        Text labelText = labelGO.GetComponent<Text>();
+        labelText.text = label;
+        labelText.fontSize = 16;
+        labelText.fontStyle = FontStyle.Bold;
+        labelText.alignment = TextAnchor.MiddleLeft;
+        labelText.color = new Color(0.85f, 0.86f, 0.92f);
+        labelText.font = uiFont;
+        LayoutElement labelLE = labelGO.AddComponent<LayoutElement>();
+        labelLE.preferredHeight = 16;
+
+        GameObject inputGO = new GameObject("InputField", typeof(Image), typeof(InputField));
+        inputGO.transform.SetParent(row.transform, false);
+
+        Image inputBg = inputGO.GetComponent<Image>();
+        inputBg.type = Image.Type.Sliced;
+        inputBg.sprite = BuildRoundedSprite(6, 0, new Color(0.15f, 0.16f, 0.18f), Color.clear);
+        inputBg.color = Color.white;
+
+        InputField inputField = inputGO.GetComponent<InputField>();
+
+        GameObject textGO = new GameObject("Text", typeof(Text));
+        textGO.transform.SetParent(inputGO.transform, false);
+        Text text = textGO.GetComponent<Text>();
+        text.text = initialValue;
+        text.fontSize = 14;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = new Color(0.85f, 0.86f, 0.92f);
+        text.font = uiFont;
+
+        RectTransform textRt = textGO.GetComponent<RectTransform>();
+        textRt.anchorMin = Vector2.zero;
+        textRt.anchorMax = Vector2.one;
+        textRt.offsetMin = new Vector2(8, 0);
+        textRt.offsetMax = new Vector2(-8, 0);
+
+        inputField.textComponent = text;
+        inputField.text = initialValue;
+
+        LayoutElement inputLE = inputGO.AddComponent<LayoutElement>();
+        inputLE.preferredHeight = 24;
+
+        inputField.onValueChanged.AddListener(v => onValueChanged(v));
+
+        return inputField;
+    }
+
+    void SyncFluidSettings()
+    {
+        if (fluidSim == null) return;
+
+        if (gravityInput != null)
+            gravityInput.text = fluidSim.gravity.ToString("F1");
+        if (smoothingRadiusInput != null)
+            smoothingRadiusInput.text = fluidSim.smoothingRadius.ToString("F3");
+        if (viscosityInput != null)
+            viscosityInput.text = fluidSim.viscosityStrength.ToString("F2");
+        if (dampingSlider != null)
+        {
+            dampingSlider.SetValueWithoutNotify(fluidSim.collisionDamping);
+            if (dampingValueText != null)
+                dampingValueText.text = string.Format("{0:F2}", fluidSim.collisionDamping);
+        }
+    }
+
+    void AddSpawnButton(Transform parent)
+    {
+        GameObject btnGO = new GameObject("SpawnButton", typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        Image bg = btnGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.28f, 0.29f, 0.32f), Color.clear);  // ✅ same grey, radius 10
+        bg.color = Color.white;
+
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 30f;   // ✅ was 42 — smaller
+        btnLE.flexibleHeight = 0;
+
+        Button btn = btnGO.GetComponent<Button>();
+        btn.targetGraphic = bg;
+        ColorBlock cb = btn.colors;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.disabledColor = new Color(0.6f, 0.6f, 0.6f);
+        btn.colors = cb;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "⬤ SPAWN PARTICLES";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        btn.onClick.AddListener(() =>
+        {
+            if (fluidSim != null) fluidSim.Spawn();
+            particlesSpawned = true;
+            btn.interactable = false;
+        });
+    }
+
     void AddStartButton(Transform parent)
     {
         GameObject btnGO = new GameObject("StartButton", typeof(Image), typeof(Button));
         btnGO.transform.SetParent(parent, false);
 
         Image bg = btnGO.GetComponent<Image>();
-        bg.color = new Color(0.22f, 0.56f, 0.95f);
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.28f, 0.29f, 0.32f), Color.clear);
+        bg.color = Color.white;
 
         LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
-        btnLE.preferredHeight = 70;
+        btnLE.preferredHeight = 30f;
         btnLE.flexibleHeight = 0;
 
         Button btn = btnGO.GetComponent<Button>();
         btn.targetGraphic = bg;
         ColorBlock cb = btn.colors;
-        cb.highlightedColor = new Color(0.35f, 0.65f, 1.0f);
-        cb.normalColor = new Color(0.22f, 0.56f, 0.95f);
-        cb.selectedColor = new Color(0.22f, 0.56f, 0.95f);
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.selectedColor = Color.white;
         btn.colors = cb;
 
         GameObject labelGO = new GameObject("Label", typeof(Text));
         labelGO.transform.SetParent(btnGO.transform, false);
         Text label = labelGO.GetComponent<Text>();
-        label.text = "START PAINTING";
-        label.fontSize = 28;
+        label.text = "▶ START SIMULATION";
+        label.fontSize = 14;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;
@@ -709,9 +1256,82 @@ public class UIManager : MonoBehaviour
         btn.onClick.AddListener(() =>
         {
             GameManager.Instance.StartGame();
-            Destroy(menuPanel);
-            menuPanel = null;
-            if (respawnButtonGO != null) respawnButtonGO.SetActive(true);
+            btn.interactable = false;
         });
+    }
+
+    GameObject CreateCard(Transform parent, string title, string icon = "")
+    {
+        // Card
+        GameObject card = new GameObject(
+            title + "_Card",
+            typeof(Image),
+            typeof(VerticalLayoutGroup));
+
+        card.transform.SetParent(parent, false);
+
+        Image bg = card.GetComponent<Image>();
+        bg.color = new Color(0.10f, 0.11f, 0.13f, 0.95f);
+
+        VerticalLayoutGroup layout = card.GetComponent<VerticalLayoutGroup>();
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandHeight = false;
+        layout.spacing = 4;
+        layout.padding = new RectOffset(12, 12, 12, 12);
+
+        LayoutElement cardLE = card.AddComponent<LayoutElement>();
+        cardLE.flexibleHeight = 0;
+
+        // Header
+        GameObject header = new GameObject(
+            "Header",
+            typeof(HorizontalLayoutGroup));
+
+        header.transform.SetParent(card.transform, false);
+
+        HorizontalLayoutGroup hlg = header.GetComponent<HorizontalLayoutGroup>();
+        hlg.childAlignment = TextAnchor.MiddleLeft;
+        hlg.childControlWidth = true;
+        hlg.childControlHeight = true;
+        hlg.spacing = 4;
+
+        LayoutElement headerLE = header.AddComponent<LayoutElement>();
+        headerLE.preferredHeight = 20;
+
+        // Optional icon
+        if (!string.IsNullOrEmpty(icon))
+        {
+            GameObject iconGO = new GameObject("Icon", typeof(Text));
+            iconGO.transform.SetParent(header.transform, false);
+
+            Text iconText = iconGO.GetComponent<Text>();
+            iconText.font = uiFont;
+            iconText.fontSize = 14;
+            iconText.alignment = TextAnchor.MiddleLeft;
+            iconText.color = new Color(0.30f, 0.60f, 1f);
+            iconText.text = icon;
+
+            LayoutElement iconLE = iconGO.AddComponent<LayoutElement>();
+            iconLE.preferredWidth = 20;
+        }
+
+        // Title
+        GameObject titleGO = new GameObject("Title", typeof(Text));
+        titleGO.transform.SetParent(header.transform, false);
+
+        Text titleText = titleGO.GetComponent<Text>();
+        titleText.font = uiFont;
+        titleText.fontSize = 13;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleLeft;
+        titleText.color = new Color(0.85f, 0.87f, 0.92f);
+        titleText.text = title.ToUpper();
+
+        LayoutElement titleLE = titleGO.AddComponent<LayoutElement>();
+        titleLE.flexibleWidth = 1;
+
+        return card;
     }
 }
