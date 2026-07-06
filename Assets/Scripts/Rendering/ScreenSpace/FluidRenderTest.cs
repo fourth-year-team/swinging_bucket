@@ -37,8 +37,8 @@ namespace Seb.Fluid.Rendering
 		public Camera shadowCam;
 		public Light sun;
 		public FoamRenderTest foamTest;
+		PaintStreamRenderer streamRenderer;
 
-		DisplayMode displayModeOld;
 		Mesh quadMesh;
 		Material matDepth;
 		Material matThickness;
@@ -48,83 +48,153 @@ namespace Seb.Fluid.Rendering
 		Material depthDownsampleCopyMat;
 		ComputeBuffer argsBuffer;
 
-		// Render textures
 		RenderTexture compRt;
 		RenderTexture depthRt;
 		RenderTexture normalRt;
 		RenderTexture shadowRt;
 		RenderTexture foamRt;
 		RenderTexture thicknessRt;
+		RenderTexture sceneRt;
 
-		// Command buffers
-		CommandBuffer cmd;
-		CommandBuffer shadowCmd;
-
-		// Smoothing types
 		Bilateral1D bilateral1D = new();
 		BilateralSmooth2D bilateral2D = new();
 		GaussSmooth gaussSmooth = new();
 
+		Camera activeCamera;
+		GameObject shadowCamGO;
+		bool initialized;
+
+		void OnEnable()
+		{
+			RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+		}
+
+		void OnDisable()
+		{
+			RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+		}
+
+		void Start()
+		{
+			if (sim == null) sim = FindObjectOfType<FluidSim>();
+			if (sun == null) sun = FindObjectOfType<Light>();
+			if (foamTest == null) foamTest = FindObjectOfType<FoamRenderTest>();
+			if (foamTest != null) foamTest.autoDraw = false;
+
+			// Always create a dedicated hidden shadow camera (don't reuse a scene camera)
+			if (shadowCam != null && shadowCam.gameObject.hideFlags != HideFlags.HideAndDontSave)
+			{
+				shadowCam = null;
+			}
+			if (shadowCam == null)
+			{
+				shadowCamGO = new GameObject("Fluid Shadow Camera");
+				shadowCamGO.hideFlags = HideFlags.HideAndDontSave;
+				shadowCam = shadowCamGO.AddComponent<Camera>();
+				shadowCam.enabled = false;
+			}
+
+			streamRenderer = FindObjectOfType<PaintStreamRenderer>();
+			if (streamRenderer != null) streamRenderer.enabled = false;
+
+			var particleDisplay = FindObjectOfType<ParticleDisplay3D>();
+			if (particleDisplay != null) particleDisplay.mode = ParticleDisplay3D.DisplayMode.None;
+		}
+
+		Camera GetActiveCamera()
+		{
+			Camera[] cams = FindObjectsByType<Camera>(FindObjectsSortMode.InstanceID);
+			Camera best = null;
+			float maxDepth = float.MinValue;
+			foreach (var c in cams)
+			{
+				if (c.isActiveAndEnabled && c.depth > maxDepth && c != shadowCam)
+				{
+					best = c;
+					maxDepth = c.depth;
+				}
+			}
+			return best;
+		}
+
 		void Update()
 		{
-			Init();
-			RenderCamSetup();
-			ShadowCamSetup();
-			BuildCommands();
-			UpdateSettings();
+			if (sim == null) sim = FindObjectOfType<FluidSim>();
+			if (sim == null || !sim.HasSpawned) return;
 
+			activeCamera = GetActiveCamera();
+			if (activeCamera == null) return;
+			activeCamera.depthTextureMode |= DepthTextureMode.Depth;
+
+			Init();
+			if (!initialized) return;
+
+			UpdateShadowCam();
+			UpdateSettings();
 			HandleDebugDisplayInput();
 		}
 
-		void BuildCommands()
+		void UpdateShadowCam()
 		{
-			// ---- Shadow cmds ----
-			shadowCmd.Clear();
-			shadowCmd.SetRenderTarget(shadowRt);
-			shadowCmd.ClearRenderTarget(true, true, Color.black);
-			shadowCmd.DrawMeshInstancedIndirect(quadMesh, 0, matThickness, 0, argsBuffer);
-			gaussSmooth.Smooth(shadowCmd, shadowRt, shadowRt, shadowRt.descriptor, shadowSmoothSettings, Vector3.one);
+			if (sun == null || shadowCam == null) return;
+			Vector3 dirToSun = -sun.transform.forward;
+			shadowCam.transform.position = dirToSun * 50;
+			shadowCam.transform.rotation = sun.transform.rotation;
+			shadowCam.orthographicSize = FrameBoundsOrtho(sim.Scale, shadowCam.worldToCameraMatrix) + 0.5f;
+		}
 
-			// ---- Render commands ----
-			cmd.Clear();
+		void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
+		{
+			if (sim == null || !sim.HasSpawned) return;
+			if (!initialized || camera != activeCamera || camera == shadowCam) return;
+			if (matComposite == null || matDepth == null || matThickness == null || matNormal == null || smoothPrepareMat == null) return;
+			if (argsBuffer == null || !argsBuffer.IsValid()) return;
 
-			// -- Render foam/spray/bubbles: rgb = (foam, foamDepth_unity, foamDepth_linear) --
+			var cmd = CommandBufferPool.Get("Fluid Screen Space Render");
+
+			// Keep the completed URP scene so the composite shader can refract/reflect it.
+			cmd.Blit(BuiltinRenderTextureType.CameraTarget, sceneRt);
+
+			cmd.SetRenderTarget(shadowRt);
+			cmd.ClearRenderTarget(true, true, Color.black);
+			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matThickness, 0, argsBuffer);
+			gaussSmooth.Smooth(cmd, shadowRt, shadowRt, shadowRt.descriptor, shadowSmoothSettings, Vector3.one);
+
 			cmd.SetRenderTarget(foamRt);
 			float depthClearVal = SystemInfo.usesReversedZBuffer ? 0 : 1;
 			cmd.ClearRenderTarget(true, true, new Color(0, depthClearVal, 0, 0));
-			foamTest.RenderWithCmdBuffer(cmd);
+			foamTest?.RenderWithCmdBuffer(cmd);
 
-			// -- Render particles to Depth texture --
 			cmd.SetRenderTarget(depthRt);
 			cmd.ClearRenderTarget(true, true, Color.white * 10000000, 1);
 			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matDepth, 0, argsBuffer);
 
-			// -- Render particles to thickness texture --
 			cmd.SetRenderTarget(thicknessRt);
-			cmd.Blit(foamRt, thicknessRt, depthDownsampleCopyMat); // copy depth from foamRt into the thicknessRt depth buffer
+			cmd.Blit(foamRt, thicknessRt, depthDownsampleCopyMat);
 			cmd.DrawMeshInstancedIndirect(quadMesh, 0, matThickness, 0, argsBuffer);
 
-			// ---- Pack thickness and depth into compRt (depth, thick, thick, depth) ----
 			cmd.Blit(null, compRt, smoothPrepareMat);
-
-			// -- Apply smoothing to RG channels of compRt, using A channel as depth source --
-			// After smoothing, it will contain (thickness_smooth, thickness, depth)
 			ApplyActiveSmoothingType(cmd, compRt, compRt, compRt.descriptor, new Vector3(1, 1, 0));
-
-			// -- Reconstruct normals from smooth depth --
 			cmd.Blit(compRt, normalRt, matNormal);
 
-			// -- Composite final image and draw to screen --
 			cmd.Blit(foamRt, BuiltinRenderTextureType.CameraTarget, matComposite);
+
+			context.ExecuteCommandBuffer(cmd);
+			context.Submit();
+			CommandBufferPool.Release(cmd);
 		}
+
+
 
 		void Init()
 		{
+			if (sim == null || sim.positionBuffer == null || sim.foamBuffer == null || sim.foamCountBuffer == null) return;
 			if (!quadMesh) quadMesh = QuadGenerator.GenerateQuadMesh();
 			ComputeHelper.CreateArgsBuffer(ref argsBuffer, quadMesh, sim.positionBuffer.count);
 
 			InitTextures();
 			InitMaterials();
+			initialized = true;
 
 			void InitMaterials()
 			{
@@ -138,11 +208,9 @@ namespace Seb.Fluid.Rendering
 
 			void InitTextures()
 			{
-				// Display size
 				int width = Screen.width;
 				int height = Screen.height;
 
-				// Thickness texture size
 				float aspect = height / (float)width;
 				int thicknessTexMaxWidth = Mathf.Min(1280, width);
 				int thicknessTexMaxHeight = Mathf.Min((int)(1280 * aspect), height);
@@ -155,7 +223,6 @@ namespace Seb.Fluid.Rendering
 					thicknessTexHeight = height;
 				}
 
-				// Shadow texture size
 				const int shadowTexSizeReduction = 4;
 				int shadowTexWidth = width / shadowTexSizeReduction;
 				int shadowTexHeight = height / shadowTexSizeReduction;
@@ -168,6 +235,7 @@ namespace Seb.Fluid.Rendering
 				ComputeHelper.CreateRenderTexture(ref compRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.None);
 				ComputeHelper.CreateRenderTexture(ref shadowRt, shadowTexWidth, shadowTexHeight, FilterMode.Bilinear, fmtR, depthMode: DepthMode.None);
 				ComputeHelper.CreateRenderTexture(ref foamRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.Depth16);
+				ComputeHelper.CreateRenderTexture(ref sceneRt, width, height, FilterMode.Bilinear, fmtRGBA, depthMode: DepthMode.None);
 			}
 		}
 
@@ -212,64 +280,33 @@ namespace Seb.Fluid.Rendering
 			return targetOrtho;
 		}
 
-		void RenderCamSetup()
-		{
-			if (cmd == null)
-			{
-				cmd = new();
-				cmd.name = "Fluid Render Commands";
-			}
 
-			Camera.main.RemoveAllCommandBuffers();
-			Camera.main.AddCommandBuffer(CameraEvent.AfterEverything, cmd);
-			Camera.main.depthTextureMode = DepthTextureMode.Depth;
-		}
-
-		void ShadowCamSetup()
-		{
-			if (shadowCmd == null)
-			{
-				shadowCmd = new();
-				shadowCmd.name = "Fluid Shadow Render Commands";
-			}
-
-			shadowCam.RemoveAllCommandBuffers();
-			shadowCam.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, shadowCmd);
-
-			Vector3 dirToSun = -sun.transform.forward;
-			shadowCam.transform.position = dirToSun * 50;
-			shadowCam.transform.rotation = sun.transform.rotation;
-			shadowCam.orthographicSize = FrameBoundsOrtho(sim.Scale, shadowCam.worldToCameraMatrix) + 0.5f;
-		}
 
 
 		void UpdateSettings()
 		{
-			// ---- Smooth prepare ----
 			smoothPrepareMat.SetTexture("Depth", depthRt);
 			smoothPrepareMat.SetTexture("Thick", thicknessRt);
 			
-			// ---- Thickess ----
 			matThickness.SetBuffer("Positions", sim.positionBuffer);
 			matThickness.SetFloat("scale", thicknessParticleScale);
 			
-			// ---- Depth ----
 			matDepth.SetBuffer("Positions", sim.positionBuffer);
 			matDepth.SetFloat("scale", depthParticleSize);
 
-			// ---- Normals ----
 			matNormal.SetInt("useSmoothedDepth", Input.GetKey(KeyCode.LeftControl) ? 0 : 1);
 
-			// ---- Composite mat settings ----
 			matComposite.SetInt("debugDisplayMode", (int)displayMode);
 			matComposite.SetTexture("Comp", compRt);
 			matComposite.SetTexture("Normals", normalRt);
 			matComposite.SetTexture("ShadowMap", shadowRt);
+			matComposite.SetTexture("_SceneTex", sceneRt);
 			
 			matComposite.SetVector("testParams", testParams);
 			matComposite.SetVector("extinctionCoefficients", extinctionCoefficients * extinctionMultiplier);
 			matComposite.SetVector("boundsSize", sim.Scale);
 			matComposite.SetFloat("refractionMultiplier", refractionMultiplier);
+			matComposite.SetFloat("_DepthParticleSize", depthParticleSize);
 
 			matComposite.SetMatrix("shadowVP", GL.GetGPUProjectionMatrix(shadowCam.projectionMatrix, false) * shadowCam.worldToCameraMatrix);
 			matComposite.SetVector("dirToSun", -sun.transform.forward);
@@ -277,8 +314,21 @@ namespace Seb.Fluid.Rendering
 			matComposite.SetFloat("thicknessDisplayScale", thicknessDisplayScale);
 			matComposite.SetBuffer("foamCountBuffer", sim.foamCountBuffer);
 			matComposite.SetInt("foamMax", sim.foamBuffer.count);
-			
-			// Environment
+
+			BucketBody bucketBody = sim.bucketBody;
+			matComposite.SetInt("_HasBucket", bucketBody != null ? 1 : 0);
+			if (bucketBody != null)
+			{
+				matComposite.SetMatrix("_BucketWorldToLocal", bucketBody.transform.worldToLocalMatrix);
+				matComposite.SetFloat("_BucketBottomY", bucketBody.bottomY);
+				matComposite.SetFloat("_BucketTopY", bucketBody.topY);
+				matComposite.SetFloat("_BucketBottomRadius", bucketBody.bottomRadius);
+				matComposite.SetFloat("_BucketTopRadius", bucketBody.topRadius);
+			}
+
+			Color paintCol = GameManager.Instance != null ? GameManager.Instance.selectedColor : Color.white;
+			matComposite.SetColor("_ParticleColor", paintCol);
+
 			Vector3 floorSize = new Vector3(30, 0.05f, 30);
 			float floorHeight = -sim.Scale.y / 2 + sim.transform.position.y - floorSize.y / 2;
 			matComposite.SetVector("floorPos", new Vector3(0, floorHeight, 0));
@@ -296,7 +346,6 @@ namespace Seb.Fluid.Rendering
 
 		void HandleDebugDisplayInput()
 		{
-			// -- Set display mode with num keys --
 			for (int i = 0; i <= 9; i++)
 			{
 				if (Input.GetKeyDown(KeyCode.Alpha0 + i))
@@ -342,7 +391,8 @@ namespace Seb.Fluid.Rendering
 		void OnDestroy()
 		{
 			ComputeHelper.Release(argsBuffer);
-			ComputeHelper.Release(depthRt, thicknessRt, normalRt, compRt, shadowRt, foamRt);
+			ComputeHelper.Release(depthRt, thicknessRt, normalRt, compRt, shadowRt, foamRt, sceneRt);
+			if (shadowCamGO != null) DestroyImmediate(shadowCamGO);
 		}
 	}
 }

@@ -2,86 +2,162 @@ Shader "Fluid/Particle3DSurf"
 {
     Properties
     {
-        _MainTex("Albedo (RGB)", 2D) = "white" {}
-        _Glossiness("Smoothness", Range(0,1)) = 0.5
-        _Metallic("Metallic", Range(0,1)) = 0.0
+        _ParticleColor("Particle Color", Color) = (1,1,1,1)
+        _Glossiness("Smoothness", Range(0,1)) = 0.25
     }
+
     SubShader
     {
-        Tags
+        Tags { "RenderType" = "Opaque" "Queue" = "Geometry" }
+
+        Pass
         {
-            "RenderType" = "Opaque"
+            Name "ForwardLit"
+            Tags { "LightMode" = "UniversalForward" }
+
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 4.5
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            StructuredBuffer<float3> Positions;
+
+            float scale;
+            float4 _ParticleColor;
+            float _Glossiness;
+
+            struct Attributes
+            {
+                float4 vertex : POSITION;
+                float3 normal : NORMAL;
+                uint instanceID : SV_InstanceID;
+            };
+
+            struct Varyings
+            {
+                float4 pos : SV_POSITION;
+                float3 worldNormal : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
+            };
+
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                float3 worldPos = Positions[v.instanceID] + v.vertex.xyz * scale;
+
+                o.pos = TransformWorldToHClip(worldPos);
+                o.worldNormal = normalize(v.normal.xyz);
+                o.worldPos = worldPos;
+                return o;
+            }
+
+            half4 frag(Varyings i) : SV_Target
+            {
+                float3 normal = normalize(i.worldNormal);
+
+                Light mainLight = GetMainLight();
+                float3 lightDir = mainLight.direction;
+                float3 lightColor = mainLight.color;
+
+                float diffuse = saturate(dot(normal, lightDir));
+                float3 viewDir = normalize(GetCameraPositionWS() - i.worldPos);
+                float3 halfDir = normalize(lightDir + viewDir);
+                float specular = pow(saturate(dot(normal, halfDir)), lerp(8.0, 64.0, _Glossiness)) * _Glossiness;
+
+                float3 ambient = SampleSH(normal);
+                float3 lighting = ambient + lightColor * (diffuse + specular);
+
+                return half4(saturate(_ParticleColor.rgb * lighting), _ParticleColor.a);
+            }
+            ENDHLSL
         }
-        LOD 200
 
-        CGPROGRAM
-        #pragma surface surf Standard addshadow fullforwardshadows vertex:vert
-        #pragma multi_compile_instancing
-        #pragma instancing_options procedural:setup
-
-        sampler2D _MainTex;
-
-        struct Input
+        Pass
         {
-            float2 uv_MainTex;
-            float4 colour;
-            float3 worldPos;
-        };
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
 
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex vert
+            #pragma fragment frag
 
-        #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
-			StructuredBuffer<float3> Positions;
-			StructuredBuffer<float3> Velocities;
-        #endif
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
+            StructuredBuffer<float3> Positions;
+            float scale;
 
-        SamplerState linear_clamp_sampler;
-        float velocityMax;
+            struct Attributes
+            {
+                float4 vertex : POSITION;
+                uint instanceID : SV_InstanceID;
+            };
 
-        float scale;
+            struct Varyings
+            {
+                float4 pos : SV_POSITION;
+            };
 
-        sampler2D ColourMap;
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                float3 worldPos = Positions[v.instanceID] + v.vertex.xyz * scale;
+                o.pos = TransformWorldToHClip(worldPos);
+                return o;
+            }
 
-        void vert(inout appdata_full v, out Input o)
-        {
-                UNITY_INITIALIZE_OUTPUT(Input, o);
-            o.uv_MainTex = v.texcoord.xy;
-
-            #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
-				float speed = length(Velocities[unity_InstanceID]);
-				float speedT = saturate(speed / velocityMax);
-				float colT = speedT;
-				o.colour = tex2Dlod(ColourMap, float4(colT, 0.5,0,0));
-            #endif
+            half4 frag(Varyings i) : SV_Target
+            {
+                return 0;
+            }
+            ENDHLSL
         }
 
-        void setup()
+        Pass
         {
-            #ifdef UNITY_PROCEDURAL_INSTANCING_ENABLED
-				float3 pos = Positions[unity_InstanceID];
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
 
-				unity_ObjectToWorld._11_21_31_41 = float4(scale, 0, 0, 0);
-				unity_ObjectToWorld._12_22_32_42 = float4(0, scale, 0, 0);
-				unity_ObjectToWorld._13_23_33_43 = float4(0, 0, scale, 0);
-				unity_ObjectToWorld._14_24_34_44 = float4(pos, 1);
-				unity_WorldToObject = unity_ObjectToWorld;
-				unity_WorldToObject._14_24_34 *= -1;
-				unity_WorldToObject._11_22_33 = 1.0f / unity_WorldToObject._11_22_33;
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex vert
+            #pragma fragment frag
 
-            #endif
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            StructuredBuffer<float3> Positions;
+            float scale;
+
+            struct Attributes
+            {
+                float4 vertex : POSITION;
+                uint instanceID : SV_InstanceID;
+            };
+
+            struct Varyings
+            {
+                float4 pos : SV_POSITION;
+            };
+
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                float3 worldPos = Positions[v.instanceID] + v.vertex.xyz * scale;
+                o.pos = TransformWorldToHClip(worldPos);
+                return o;
+            }
+
+            half4 frag(Varyings i) : SV_Target
+            {
+                return 0;
+            }
+            ENDHLSL
         }
-
-        half _Glossiness;
-        half _Metallic;
-
-        void surf(Input IN, inout SurfaceOutputStandard o)
-        {
-            o.Albedo = IN.colour;
-            o.Metallic = 0;
-            o.Smoothness = 0;
-            o.Alpha = 1;
-        }
-        ENDCG
     }
-    FallBack "Diffuse"
 }

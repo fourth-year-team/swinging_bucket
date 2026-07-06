@@ -23,20 +23,20 @@ namespace Seb.Fluid.Simulation
 		public float viscosityStrength = 0;
 		[Range(0, 1)] public float collisionDamping = 0.95f;
 
-		[Header("Foam Settings")] public bool foamActive;
-		public int maxFoamParticleCount = 1000;
-		public float trappedAirSpawnRate = 70;
-		public float spawnRateFadeInTime = 0.5f;
-		public float spawnRateFadeStartTime = 0;
-		public Vector2 trappedAirVelocityMinMax = new(5, 25);
-		public Vector2 foamKineticEnergyMinMax = new(15, 80);
-		public float bubbleBuoyancy = 1.5f;
-		public int sprayClassifyMaxNeighbours = 5;
-		public int bubbleClassifyMinNeighbours = 15;
-		public float bubbleScale = 0.5f;
-		public float bubbleChangeScaleSpeed = 7;
+		[HideInInspector] [Header("Foam Settings")] public bool foamActive;
+        [HideInInspector] public int maxFoamParticleCount = 1000;
+        [HideInInspector] public float trappedAirSpawnRate = 70;
+        [HideInInspector] public float spawnRateFadeInTime = 0.5f;
+        [HideInInspector] public float spawnRateFadeStartTime = 0;
+        [HideInInspector] public Vector2 trappedAirVelocityMinMax = new(5, 25);
+        [HideInInspector] public Vector2 foamKineticEnergyMinMax = new(15, 80);
+        [HideInInspector] public float bubbleBuoyancy = 1.5f;
+        [HideInInspector] public int sprayClassifyMaxNeighbours = 5;
+        [HideInInspector] public int bubbleClassifyMinNeighbours = 15;
+        [HideInInspector] public float bubbleScale = 0.5f;
+        [HideInInspector] public float bubbleChangeScaleSpeed = 7;
 
-		[Header("Volumetric Render Settings")] public bool renderToTex3D;
+        [HideInInspector] [Header("Volumetric Render Settings")] public bool renderToTex3D;
 		public int densityTextureRes;
 
 		[Header("References")] public ComputeShader compute;
@@ -88,6 +88,7 @@ namespace Seb.Fluid.Simulation
 		float simTimer;
 		Spawner3D.SpawnData spawnData;
 		Dictionary<ComputeBuffer, string> bufferNameLookup;
+		public bool HasSpawned { get; private set; }
 
 		void Start()
 		{
@@ -511,6 +512,7 @@ namespace Seb.Fluid.Simulation
 		{
 			spawnData = spawner.GetSpawnData();
 			SetInitialBufferData(spawnData);
+			HasSpawned = true;
 			isPaused = false;
 		}
 

@@ -21,6 +21,7 @@ Shader "Fluid/ParticleDepth" {
 				float4 pos : SV_POSITION;
 				float2 uv : TEXCOORD0;
 				float3 posWorld : TEXCOORD1;
+				float3 centreWorld : TEXCOORD2;
 			};
 
 			v2f vert (appdata_base v, uint instanceID : SV_InstanceID)
@@ -34,6 +35,7 @@ Shader "Fluid/ParticleDepth" {
 				float3 vertPosWorld = worldCentre + camRight * vertOffset.x + camUp * vertOffset.y;
 				o.pos = mul(UNITY_MATRIX_VP, float4(vertPosWorld, 1));
 				o.posWorld = vertPosWorld;
+				o.centreWorld = worldCentre;
 				o.uv = v.texcoord;
 
 				return o;
@@ -52,8 +54,11 @@ Shader "Fluid/ParticleDepth" {
 				if (sqrDst > 1) discard;
 
 				float z = sqrt(1-sqrDst);
-				 float d = abs(mul(unity_MatrixV, float4(i.posWorld, 1)).z);
 				float dcam = length(i.posWorld - _WorldSpaceCameraPos);
+				float3 sphereNormal = normalize(centreOffset.x * unity_CameraToWorld._m00_m10_m20 + centreOffset.y * unity_CameraToWorld._m01_m11_m21 + z * normalize(_WorldSpaceCameraPos - i.centreWorld));
+				float3 viewDir = normalize(_WorldSpaceCameraPos - i.centreWorld);
+				if (dot(sphereNormal, viewDir) <= 0) discard;
+
 				float linearDepth = dcam - z * scale;
 				Depth = LinearDepthToUnityDepth(linearDepth);
 				

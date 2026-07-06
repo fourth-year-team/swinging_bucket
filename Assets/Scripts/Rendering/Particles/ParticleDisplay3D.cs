@@ -29,14 +29,23 @@ namespace Seb.Fluid.Rendering
 		Material mat;
 		ComputeBuffer argsBuffer;
 		Texture2D gradientTexture;
-		DisplayMode modeOld;
+		DisplayMode modeOld = (DisplayMode)(-1);
+		Shader shaderOld;
+		int meshResolutionOld = -1;
 		bool needsUpdate;
+
+		void Update()
+		{
+			if (Input.GetKeyDown(KeyCode.Alpha1)) mode = DisplayMode.None;
+			if (Input.GetKeyDown(KeyCode.Alpha2)) mode = DisplayMode.Shaded3D;
+			if (Input.GetKeyDown(KeyCode.Alpha3)) mode = DisplayMode.Billboard;
+		}
 
 		void LateUpdate()
 		{
 			UpdateSettings();
 
-			if (mode != DisplayMode.None)
+			if (mode != DisplayMode.None && mesh != null && mat != null && argsBuffer != null)
 			{
 				Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 10000);
 				Graphics.DrawMeshInstancedIndirect(mesh, 0, mat, bounds, argsBuffer);
@@ -45,21 +54,24 @@ namespace Seb.Fluid.Rendering
 
 		void UpdateSettings()
 		{
-			if (modeOld != mode)
+			Shader activeShader = mode == DisplayMode.Shaded3D ? shaderShaded : shaderBillboard;
+			if (modeOld != mode || shaderOld != activeShader || meshResolutionOld != meshResolution)
 			{
 				modeOld = mode;
+				shaderOld = activeShader;
+				meshResolutionOld = meshResolution;
+				ComputeHelper.Release(argsBuffer);
+				argsBuffer = null;
+				DestroyMaterial();
+
 				if (mode != DisplayMode.None)
 				{
 					if (mode == DisplayMode.Billboard) mesh = QuadGenerator.GenerateQuadMesh();
 					else mesh = SphereGenerator.GenerateSphereMesh(meshResolution);
 					ComputeHelper.CreateArgsBuffer(ref argsBuffer, mesh, sim.positionBuffer.count);
 
-					mat = mode switch
-					{
-						DisplayMode.Shaded3D => new Material(shaderShaded),
-						DisplayMode.Billboard => new Material(shaderBillboard),
-						_ => null
-					};
+					mat = new Material(activeShader);
+					mat.enableInstancing = true;
 
 
 					mat.SetBuffer("Positions", sim.positionBuffer);
@@ -79,6 +91,7 @@ namespace Seb.Fluid.Rendering
 
 				mat.SetFloat("scale", scale * 0.01f);
 				mat.SetFloat("velocityMax", velocityDisplayMax);
+				mat.SetColor("_ParticleColor", GameManager.Instance != null ? GameManager.Instance.selectedColor : Color.white);
 
 				Vector3 s = transform.localScale;
 				transform.localScale = Vector3.one;
@@ -131,6 +144,15 @@ namespace Seb.Fluid.Rendering
 		void OnDestroy()
 		{
 			ComputeHelper.Release(argsBuffer);
+			DestroyMaterial();
+		}
+
+		void DestroyMaterial()
+		{
+			if (mat == null) return;
+			if (Application.isPlaying) Destroy(mat);
+			else DestroyImmediate(mat);
+			mat = null;
 		}
 	}
 }

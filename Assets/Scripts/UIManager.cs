@@ -25,6 +25,7 @@ public class UIManager : MonoBehaviour
     private GameObject menuPanel;
     private GameObject hudPanel;
     private GameObject controlPanel;
+    private GameObject respawnButtonGO;
     private Image selectedSwatch;
     private Font uiFont;
 
@@ -53,6 +54,7 @@ public class UIManager : MonoBehaviour
         CreateCanvas();
         CreateHUD();
         CreateControlPanel();
+        CreateRespawnButton();
         CreateMenu();
 
         if (presetColors.Length > 0)
@@ -275,6 +277,56 @@ public class UIManager : MonoBehaviour
         {
             if (rope != null) rope.SetThetaPhiDegrees(thetaSlider != null ? thetaSlider.value : rope.startTheta, value);
         }, out phiSliderValue);
+    }
+
+    void CreateRespawnButton()
+    {
+        respawnButtonGO = new GameObject("RespawnParticlesButton", typeof(Image), typeof(Button), typeof(RespawnButton));
+        respawnButtonGO.transform.SetParent(canvas.transform, false);
+        respawnButtonGO.SetActive(false);
+
+        RectTransform rt = respawnButtonGO.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0);
+        rt.anchorMax = new Vector2(0.5f, 0);
+        rt.pivot = new Vector2(0.5f, 0);
+        rt.anchoredPosition = new Vector2(0, 34);
+        rt.sizeDelta = new Vector2(300, 64);
+
+        Image bg = respawnButtonGO.GetComponent<Image>();
+        bg.color = new Color(0.22f, 0.56f, 0.95f, 0.95f);
+
+        Button button = respawnButtonGO.GetComponent<Button>();
+        button.targetGraphic = bg;
+        ColorBlock cb = button.colors;
+        cb.normalColor = new Color(0.22f, 0.56f, 0.95f, 0.95f);
+        cb.highlightedColor = new Color(0.35f, 0.65f, 1f, 1f);
+        cb.pressedColor = new Color(0.14f, 0.38f, 0.72f, 1f);
+        cb.disabledColor = new Color(0.22f, 0.22f, 0.26f, 0.65f);
+        button.colors = cb;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(respawnButtonGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "RESPAWN PARTICLES";
+        label.fontSize = 24;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform labelRt = labelGO.GetComponent<RectTransform>();
+        labelRt.anchorMin = Vector2.zero;
+        labelRt.anchorMax = Vector2.one;
+        labelRt.offsetMin = Vector2.zero;
+        labelRt.offsetMax = Vector2.zero;
+
+        RespawnButton respawnButton = respawnButtonGO.GetComponent<RespawnButton>();
+        button.onClick.AddListener(() =>
+        {
+            respawnButton.Spawn();
+            button.interactable = false;
+            label.text = "PARTICLES SPAWNED";
+        });
     }
 
     Slider AddAngleSlider(Transform parent, string label, float min, float max, float initialValue, System.Action<float> onChanged, out Text valueText)
@@ -659,6 +711,7 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.StartGame();
             Destroy(menuPanel);
             menuPanel = null;
+            if (respawnButtonGO != null) respawnButtonGO.SetActive(true);
         });
     }
 }
