@@ -51,6 +51,14 @@ public class PaintStreamRenderer : MonoBehaviour
         if (bucket != null) previousHolePos = bucket.GetHoleWorldPosition();
     }
 
+    public void ClearDrops()
+    {
+        drops.Clear();
+        mesh.Clear();
+        previousPaintMass = bucket != null ? bucket.paintMass : 0f;
+        if (bucket != null) previousHolePos = bucket.GetHoleWorldPosition();
+    }
+
     void LateUpdate()
     {
         if (bucket == null) return;

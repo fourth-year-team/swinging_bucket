@@ -517,16 +517,31 @@ namespace Seb.Fluid.Simulation
 			isPaused = false;
 		}
 
-		public void ResetSimulation()
-		{
-			SetInitialBufferData(spawnData);
-			if (drawingBoard != null)
-				drawingBoard.ClearBoard();
-			if (renderToTex3D)
-			{
-				RunSimulationFrame(0);
-			}
-		}
+        public void ResetSimulation()
+        {
+            SetInitialBufferData(spawnData);
+            if (drawingBoard != null)
+                drawingBoard.ClearBoard();
+            if (renderToTex3D)
+            {
+                RunSimulationFrame(0);
+            }
+        }
+
+        public void FullReset()
+        {
+            spawnData = spawner.GetSpawnData();
+            SetInitialBufferData(spawnData);
+            if (drawingBoard != null)
+                drawingBoard.ClearBoard();
+            if (renderToTex3D)
+            {
+                RunSimulationFrame(0);
+            }
+            HasSpawned = false;
+            isPaused = true;
+            simTimer = 0;
+        }
 
 		void OnDestroy()
 		{

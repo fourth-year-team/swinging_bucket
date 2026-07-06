@@ -310,8 +310,8 @@ MonoBehaviour:
   topY: 5.25
   bottomRadius: 1.75
   topRadius: 1.95
-  holeEnabled: 1
-  holeRadius: 0.2
+  holeEnabled: 0
+  holeRadius: 0.3
   holeLocalOffset: {x: 0, y: 0}
   emptyMass: 10
   paintLeakRate: 1
@@ -1971,7 +1971,7 @@ MonoBehaviour:
   startTheta: 30
   startPhi: 0
   inital_offset: {x: 10, y: 0, z: 0}
-  angularMotion: 0
+  angularMotion: 1
   theta: 0
   phi: 0
   anchor: {fileID: 1511524331}
@@ -1982,9 +1982,6 @@ MonoBehaviour:
   constraintIterations: 180
   gravity: -9.81
   damping: 0.002
-  airDamping: 0.5
-  windDirection: {x: 0, y: 0, z: 0}
-  windStrength: 0
   twistEnabled: 0
   twistSpeed: 360
   torsionalStiffness: 8
@@ -1994,7 +1991,7 @@ MonoBehaviour:
   bucketBody: {fileID: 202964311}
   bucketVisual: {fileID: 202964310}
   bucketMass: 10
-  paintMass: 40
+  paintMass: 50
   totalMass: 0
   ropeRadius: 0.05
   radialSegments: 6

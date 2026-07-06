@@ -64,6 +64,25 @@ public class Rope : MonoBehaviour
         Initialize();
     }
 
+    public void Restart()
+    {
+        theta = startTheta * Mathf.Deg2Rad;
+        phi = startPhi * Mathf.Deg2Rad;
+        twistAngle = 0f;
+        twistVelocity = 0f;
+
+        if (currentPos == null || currentPos.Length != segmentCount)
+        {
+            Initialize();
+            return;
+        }
+
+        ApplyPoseFromAngles(true);
+
+        if (bucketVisual != null)
+            bucketVisual.position = bucketBody.position;
+    }
+
     void Initialize()
     {
         if (anchor == null || bucketEnd == null) return;
