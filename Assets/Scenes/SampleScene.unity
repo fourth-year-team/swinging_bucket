@@ -204,7 +204,7 @@ MonoBehaviour:
   holeRadius: 0.3
   holeLocalOffset: {x: 0, y: 0}
   emptyMass: 10
-  paintLeakRate: 1
+  paintLeakRate: 5
   linearVelocity: {x: 0, y: 0, z: 0}
   angularVelocity: {x: 0, y: 0, z: 0}
   prevWorldToLocalMatrix:
@@ -1883,6 +1883,12 @@ MonoBehaviour:
   bucketMass: 10
   paintMass: 50
   totalMass: 0
+  rho_air: 1.225
+  Cd: 1
+  humidity: 0
+  pivotFriction: 0.01
+  windDirection: {x: 1, y: 0, z: 0}
+  windStrength: 0
   ropeRadius: 0.05
   radialSegments: 6
   currentPos: []
@@ -2333,6 +2339,7 @@ MonoBehaviour:
   textureResolution: 1024
   boardTexture: {fileID: 0}
   paintAmountTexture: {fileID: 0}
+  paintColorTexture: {fileID: 0}
 --- !u!114 &1273481097
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3054,6 +3061,11 @@ MonoBehaviour:
   bubbleClassifyMinNeighbours: 20
   bubbleScale: 0.8
   bubbleChangeScaleSpeed: 1
+  rho_air: 1.225
+  Cd_fluid: 0.47
+  humidity: 0
+  windDirection: {x: 1, y: 0, z: 0}
+  windStrength: 0
   renderToTex3D: 0
   densityTextureRes: 150
   compute: {fileID: 7200000, guid: 9443696acfd0ebe4fb503b56d952256c, type: 3}

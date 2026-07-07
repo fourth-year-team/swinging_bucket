@@ -60,6 +60,7 @@ namespace Seb.Fluid.Rendering
 		Camera activeCamera;
 		GameObject shadowCamGO;
 		bool initialized;
+		public bool renderScreenSpace = true;
 
 		void OnEnable()
 		{
@@ -139,6 +140,7 @@ namespace Seb.Fluid.Rendering
 
 		void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
 		{
+			if (!renderScreenSpace) return;
 			if (sim == null || !sim.HasSpawned) return;
 			if (!initialized || camera != activeCamera || camera == shadowCam) return;
 			if (matComposite == null || matDepth == null || matThickness == null || matNormal == null || smoothPrepareMat == null) return;

@@ -2,6 +2,7 @@
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using Seb.Fluid.Simulation;
+using Seb.Fluid.Rendering;
 
 public class UIManager : MonoBehaviour
 {
@@ -40,6 +41,10 @@ public class UIManager : MonoBehaviour
     private SimulationController simController;
     private bool particlesSpawned;
     private Button startButton;
+    private ParticleDisplay3D particleDisplay;
+    private FluidRenderTest fluidRender;
+    private Button displayModeButton;
+    private Button screenSpaceButton;
 
     private InputField gravityInput, smoothingRadiusInput, viscosityInput;
     private Slider dampingSlider;
@@ -76,6 +81,8 @@ public class UIManager : MonoBehaviour
         fluidSim = FindFirstObjectByType<FluidSim>();
         drawingBoard = FindFirstObjectByType<DrawingBoard>();
         simController = FindFirstObjectByType<SimulationController>();
+        particleDisplay = FindFirstObjectByType<ParticleDisplay3D>();
+        fluidRender = FindFirstObjectByType<FluidRenderTest>();
         SyncAngleControlsFromRope();
         SyncFluidSettings();
     }
@@ -134,7 +141,7 @@ public class UIManager : MonoBehaviour
         hrt.anchorMax = new Vector2(0, 1);
         hrt.pivot = new Vector2(0, 1);
         hrt.anchoredPosition = new Vector2(30, -30);
-        hrt.sizeDelta = new Vector2(260, 200);
+        hrt.sizeDelta = new Vector2(260, 280);
 
         Image hbg = hudPanel.GetComponent<Image>();
         hbg.type = Image.Type.Sliced;
@@ -167,6 +174,15 @@ public class UIManager : MonoBehaviour
         phiText = AddHUDLine("hudPhi", "φ", "\u03C6", "0.0\u00B0");
         paintText = AddHUDLine("hudPaint", "💧", "Paint", "0.0 kg");
         massText = AddHUDLine("hudMass", "🎒", "Mass", "0.0 kg");
+
+        // Add spacer
+        GameObject spacer = new GameObject("Spacer", typeof(LayoutElement));
+        spacer.transform.SetParent(hudPanel.transform, false);
+        LayoutElement spacerLE = spacer.GetComponent<LayoutElement>();
+        spacerLE.preferredHeight = 6;
+
+        AddDisplayModeButton(hudPanel.transform);
+        AddScreenSpaceButton(hudPanel.transform);
     }
 
     void SyncAngleControlsFromRope()
@@ -1133,12 +1149,121 @@ public class UIManager : MonoBehaviour
             if (rope != null) rope.Restart();
             if (fluidSim != null) fluidSim.FullReset();
 
-            PaintStreamRenderer stream = FindFirstObjectByType<PaintStreamRenderer>();
-            if (stream != null) stream.ClearDrops();
 
             particlesSpawned = false;
             if (spawnButton != null) spawnButton.interactable = true;
             if (startButton != null) startButton.interactable = true;
+        });
+    }
+
+    void AddDisplayModeButton(Transform parent)
+    {
+        GameObject btnGO = new GameObject("DisplayModeButton", typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        Image bg = btnGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.20f, 0.25f, 0.35f), Color.clear);
+        bg.color = Color.white;
+
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 30f;
+        btnLE.flexibleHeight = 0;
+
+        displayModeButton = btnGO.GetComponent<Button>();
+        Button btn = displayModeButton;
+        btn.targetGraphic = bg;
+        ColorBlock cb = btn.colors;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.disabledColor = new Color(0.6f, 0.6f, 0.6f);
+        btn.colors = cb;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "◉ PAR: OFF";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        btn.onClick.AddListener(() =>
+        {
+            if (particleDisplay == null) particleDisplay = FindFirstObjectByType<ParticleDisplay3D>();
+            if (particleDisplay == null) return;
+
+            particleDisplay.mode = particleDisplay.mode switch
+            {
+                ParticleDisplay3D.DisplayMode.None => ParticleDisplay3D.DisplayMode.Shaded3D,
+                ParticleDisplay3D.DisplayMode.Shaded3D => ParticleDisplay3D.DisplayMode.Billboard,
+                ParticleDisplay3D.DisplayMode.Billboard => ParticleDisplay3D.DisplayMode.None,
+                _ => ParticleDisplay3D.DisplayMode.None
+            };
+
+            label.text = particleDisplay.mode switch
+            {
+                ParticleDisplay3D.DisplayMode.None => "◉ PAR: OFF",
+                ParticleDisplay3D.DisplayMode.Shaded3D => "◉ PAR: 3D",
+                ParticleDisplay3D.DisplayMode.Billboard => "◉ PAR: BILLBOARD",
+                _ => "◉ PAR: OFF"
+            };
+        });
+    }
+
+    void AddScreenSpaceButton(Transform parent)
+    {
+        GameObject btnGO = new GameObject("ScreenSpaceButton", typeof(Image), typeof(Button));
+        btnGO.transform.SetParent(parent, false);
+
+        Image bg = btnGO.GetComponent<Image>();
+        bg.type = Image.Type.Sliced;
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.25f, 0.20f, 0.35f), Color.clear);
+        bg.color = Color.white;
+
+        LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
+        btnLE.preferredHeight = 30f;
+        btnLE.flexibleHeight = 0;
+
+        screenSpaceButton = btnGO.GetComponent<Button>();
+        Button btn = screenSpaceButton;
+        btn.targetGraphic = bg;
+        ColorBlock cb = btn.colors;
+        cb.normalColor = Color.white;
+        cb.highlightedColor = new Color(0.85f, 0.85f, 0.85f);
+        cb.disabledColor = new Color(0.6f, 0.6f, 0.6f);
+        btn.colors = cb;
+
+        GameObject labelGO = new GameObject("Label", typeof(Text));
+        labelGO.transform.SetParent(btnGO.transform, false);
+        Text label = labelGO.GetComponent<Text>();
+        label.text = "⏺ LIQ: ON";
+        label.fontSize = 13;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.font = uiFont;
+
+        RectTransform lrt = labelGO.GetComponent<RectTransform>();
+        lrt.anchorMin = Vector2.zero;
+        lrt.anchorMax = Vector2.one;
+        lrt.offsetMin = Vector2.zero;
+        lrt.offsetMax = Vector2.zero;
+
+        btn.onClick.AddListener(() =>
+        {
+            if (fluidRender == null) fluidRender = FindFirstObjectByType<FluidRenderTest>();
+            if (fluidRender == null) return;
+
+            fluidRender.renderScreenSpace = !fluidRender.renderScreenSpace;
+            label.text = fluidRender.renderScreenSpace ? "⏺ LIQ: ON" : "⏺ LIQ: OFF";
         });
     }
 
