@@ -175,14 +175,7 @@ public class UIManager : MonoBehaviour
         paintText = AddHUDLine("hudPaint", "💧", "Paint", "0.0 kg");
         massText = AddHUDLine("hudMass", "🎒", "Mass", "0.0 kg");
 
-        // Add spacer
-        GameObject spacer = new GameObject("Spacer", typeof(LayoutElement));
-        spacer.transform.SetParent(hudPanel.transform, false);
-        LayoutElement spacerLE = spacer.GetComponent<LayoutElement>();
-        spacerLE.preferredHeight = 6;
-
-        AddDisplayModeButton(hudPanel.transform);
-        AddScreenSpaceButton(hudPanel.transform);
+        AddRenderingSettings(hudPanel.transform);
     }
 
     void SyncAngleControlsFromRope()
@@ -1056,6 +1049,41 @@ public class UIManager : MonoBehaviour
         });
     }
 
+    void AddRenderingSettings(Transform parent)
+    {
+        GameObject section = CreateCard(parent, "RENDERING SETTINGS", "");
+        section.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+
+        Text sectionTitle = section.transform.Find("Header/Title").GetComponent<Text>();
+        sectionTitle.text = "RENDERING SETTINGS";
+        sectionTitle.fontSize = 13;
+        sectionTitle.fontStyle = FontStyle.Bold;
+        sectionTitle.alignment = TextAnchor.MiddleLeft;
+        sectionTitle.color = new Color(0.85f, 0.85f, 0.9f);
+
+        Transform iconT = section.transform.Find("Header/Icon");
+        if (iconT != null) iconT.gameObject.SetActive(false);
+
+        VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
+        slg.childAlignment = TextAnchor.UpperLeft;
+        slg.childControlWidth = true;
+        slg.childControlHeight = true;
+        slg.spacing = 8;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 0;
+
+        AddDisplayModeButton(hudPanel.transform);
+
+        // Add spacer
+        GameObject spacer = new GameObject("Spacer", typeof(LayoutElement));
+        spacer.transform.SetParent(hudPanel.transform, false);
+        LayoutElement spacerLE = spacer.GetComponent<LayoutElement>();
+        spacerLE.preferredHeight = 6;
+
+        AddScreenSpaceButton(hudPanel.transform);
+    }
+
     void AddSpawnButton(Transform parent)
     {
         GameObject btnGO = new GameObject("SpawnButton", typeof(Image), typeof(Button));
@@ -1375,7 +1403,7 @@ public class UIManager : MonoBehaviour
 
         Image bg = btnGO.GetComponent<Image>();
         bg.type = Image.Type.Sliced;
-        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.08f, 0.09f, 0.11f), Color.clear);
+        bg.sprite = BuildRoundedSprite(10, 0, new Color(0.08f, 0.09f, 0.11f, 0.94f), Color.clear);
         bg.color = Color.white;
 
         LayoutElement btnLE = btnGO.AddComponent<LayoutElement>();
@@ -1395,7 +1423,7 @@ public class UIManager : MonoBehaviour
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
-        rt.anchoredPosition = new Vector2(30, -240);
+        rt.anchoredPosition = new Vector2(30, -320);
         rt.sizeDelta = new Vector2(260, 30);
 
         GameObject labelGO = new GameObject("Label", typeof(Text));
