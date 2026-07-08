@@ -1042,7 +1042,7 @@ public class UIManager : MonoBehaviour
 
         AddInputFieldRow(section.transform, "RopeLengthRow", "Rope Length", rope != null ? rope.ropeLength.ToString("F1") : "5", v =>
         {
-            if (rope != null && float.TryParse(v, out float val)) rope.ropeLength = val;
+            if (rope != null && float.TryParse(v, out float val)) rope.SetRopeLength(val);
         });
 
         AddToggleRow(section.transform, "TwistEnableRow", "Twist Enable", rope != null ? rope.twistEnabled : false, v =>
@@ -1050,9 +1050,9 @@ public class UIManager : MonoBehaviour
             if (rope != null) rope.twistEnabled = v;
         });
 
-        AddInputFieldRow(section.transform, "PaintMassRow", "Paint Mass", rope != null ? rope.paintMass.ToString("F1") : "40", v =>
+        AddInputFieldRow(section.transform, "PaintMassRow", "Paint Mass", rope != null && rope.bucketBody != null ? rope.bucketBody.paintMass.ToString("F1") : "10", v =>
         {
-            if (rope != null && float.TryParse(v, out float val)) rope.paintMass = val;
+            if (rope != null && rope.bucketBody != null && float.TryParse(v, out float val)) rope.bucketBody.SetPaintMass(val);
         });
     }
 
