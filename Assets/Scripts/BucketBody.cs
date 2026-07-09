@@ -16,20 +16,39 @@ public class BucketBody : MonoBehaviour
     [Header("Paint Settings")]
     public float emptyMass = 10f;
     public float paintLeakRate = 1f;
+    public float paintMass = 10f;
+    public float particlesPerKg = 231f;
 
-    [HideInInspector] public Vector3 linearVelocity;
-    [HideInInspector] public Vector3 angularVelocity;
-    [HideInInspector] public Matrix4x4 prevWorldToLocalMatrix;
-    [HideInInspector] public Matrix4x4 initialLocalToWorldMatrix;
-    [HideInInspector] public Matrix4x4 initialWorldToLocalMatrix;
+    [Header("Computed")]
+    public int targetParticleCount;
 
-    // Physics simulation state (used by Rope)
+    // Linear simulation state (handle/rope-attachment point)
     [HideInInspector] public Vector3 position;
     [HideInInspector] public Vector3 previousPosition;
     [HideInInspector] public float mass;
-    [HideInInspector] public float theta;
-    [HideInInspector] public float phi;
-    [HideInInspector] public float paintMass = 10f;
+
+    // Velocities (read by FluidSim and Rope for tilt)
+    [HideInInspector] public Vector3 linearVelocity;
+    [HideInInspector] public Vector3 previousLinearVelocity;
+    [HideInInspector] public Vector3 angularVelocity;
+
+    // Visual offset from handle to visual pivot (handle-local space)
+    [HideInInspector] public Vector3 localVisualOffset = Vector3.zero;
+
+    private float defaultPaintMass;
+
+    public void SetPaintMass(float mass)
+    {
+        paintMass = mass;
+        this.mass = emptyMass + paintMass;
+        targetParticleCount = Mathf.RoundToInt(paintMass * particlesPerKg);
+    }
+
+    void OnValidate()
+    {
+        targetParticleCount = Mathf.RoundToInt(paintMass * particlesPerKg);
+        mass = emptyMass + paintMass;
+    }
 
     public float Fill01 => emptyMass <= 0f ? 0f : Mathf.Clamp01(paintMass / emptyMass);
 
@@ -49,75 +68,38 @@ public class BucketBody : MonoBehaviour
         return Mathf.Lerp(bottomRadius, topRadius, t);
     }
 
-    Vector3 prevPos;
-    Quaternion prevRot;
-    Matrix4x4 prevMatrix;
-
     void Awake()
     {
-        prevPos = transform.position;
-        prevRot = transform.rotation;
-        prevWorldToLocalMatrix = transform.worldToLocalMatrix;
-        initialLocalToWorldMatrix = transform.localToWorldMatrix;
-        initialWorldToLocalMatrix = transform.worldToLocalMatrix;
-    }
-
-    void FixedUpdate()
-    {
-        float dt = Time.fixedDeltaTime;
-        if (dt <= 0f) return;
-
-        linearVelocity = (transform.position - prevPos) / dt;
-
-        Quaternion delta = transform.rotation * Quaternion.Inverse(prevRot);
-        delta.ToAngleAxis(out float angleDeg, out Vector3 axis);
-
-        if (angleDeg > 180f) angleDeg -= 360f;
-
-        angularVelocity =
-            (axis.sqrMagnitude < 0.0001f)
-            ? Vector3.zero
-            : axis.normalized * (angleDeg * Mathf.Deg2Rad / dt);
-
-        prevPos = transform.position;
-        prevRot = transform.rotation;
-
-        prevWorldToLocalMatrix = prevMatrix;
-        prevMatrix = transform.worldToLocalMatrix;
+        defaultPaintMass = paintMass;
     }
 
     public void ResetState()
     {
-        paintMass = 10f;
-        mass = emptyMass + paintMass;
+        SetPaintMass(defaultPaintMass);
+        position = Vector3.zero;
+        previousPosition = Vector3.zero;
         linearVelocity = Vector3.zero;
-        angularVelocity = Vector3.zero;
+        previousLinearVelocity = Vector3.zero;
     }
 
-    public void Integrate(Vector3 gravity, float dt, float damping)
+    public void Integrate(Vector3 gravityAccel, float dt, float damping)
     {
         Vector3 velocity = (position - previousPosition);
-
-        Vector3 current = position;
-        position = current + velocity * (1f - damping) + gravity * dt * dt;
-
-        previousPosition = current;
+        Vector3 currentPos = position;
+        position = currentPos + velocity * (1f - damping) + gravityAccel * dt * dt;
+        previousPosition = currentPos;
+        previousLinearVelocity = linearVelocity;
+        linearVelocity = (position - previousPosition) / dt;
 
         if (paintMass > 0f && holeEnabled)
         {
-            // Torricelli-like flow: rate ~ sqrt(head) * holeArea * leakRate
             float head = Mathf.Max(paintMass / (emptyMass + paintMass), 0.001f);
             float holeArea = holeRadius * holeRadius;
             float baseFlow = Mathf.Sqrt(head) * holeArea * paintLeakRate;
-
-            // Motion increases spillage
-            float motion = angularVelocity.magnitude;
+            float motion = linearVelocity.magnitude;
             float motionFactor = 1f + motion * 0.5f;
-
             paintMass -= baseFlow * motionFactor * dt;
             if (paintMass < 0f) paintMass = 0f;
-
-            // Update total mass for rope dynamics
             mass = emptyMass + paintMass;
         }
     }
@@ -129,7 +111,6 @@ public class BucketBody : MonoBehaviour
         Gizmos.color = Color.red;
         int segs = 32;
         float step = Mathf.PI * 2f / segs;
-
         for (int i = 0; i < segs; i++)
         {
             float a0 = i * step;

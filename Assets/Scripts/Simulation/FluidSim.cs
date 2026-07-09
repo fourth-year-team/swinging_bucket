@@ -50,6 +50,7 @@ namespace Seb.Fluid.Simulation
 		public Spawner3D spawner;
 		public BucketBody bucketBody;
 		public DrawingBoard drawingBoard;
+		public Rope rope;
 
 		[Header("World Bounds (fallback when particles escape bucket)")]
 		public Vector3 boundsMin = new Vector3(-10, -1, -10);
@@ -101,6 +102,7 @@ namespace Seb.Fluid.Simulation
 		void Start()
 		{
 			isPaused = true;
+			if (rope == null) rope = FindObjectOfType<Rope>();
 			Initialize();
 		}
 
@@ -516,10 +518,11 @@ namespace Seb.Fluid.Simulation
 			compute.SetFloat("_ParticleRadius", smoothingRadius * 0.5f);
 
 			// Environmental forces
+			Vector3 wind = rope != null ? rope.windDirection.normalized * rope.windStrength : windDirection.normalized * windStrength;
 			compute.SetFloat("rho_air", rho_air);
 			compute.SetFloat("Cd_fluid", Cd_fluid);
 			compute.SetFloat("humidity", humidity);
-			compute.SetVector("windVector", windDirection.normalized * windStrength);
+			compute.SetVector("windVector", wind);
 		}
 
 		void SetInitialBufferData(Spawner3D.SpawnData spawnData)
@@ -539,6 +542,8 @@ namespace Seb.Fluid.Simulation
 		public void Spawn()
 		{
 			spawnData = spawner.GetSpawnData();
+			ReleaseResources();
+			Initialize();
 			SetInitialBufferData(spawnData);
 			HasSpawned = true;
 			isPaused = false;
@@ -555,20 +560,22 @@ namespace Seb.Fluid.Simulation
             }
         }
 
-        public void FullReset()
-        {
-            spawnData = spawner.GetSpawnData();
-            SetInitialBufferData(spawnData);
-            if (drawingBoard != null)
-                drawingBoard.ClearBoard();
-            if (renderToTex3D)
-            {
-                RunSimulationFrame(0);
-            }
-            HasSpawned = false;
-            isPaused = true;
-            simTimer = 0;
-        }
+		public void FullReset()
+		{
+			spawnData = spawner.GetSpawnData();
+			ReleaseResources();
+			Initialize();
+			SetInitialBufferData(spawnData);
+			if (drawingBoard != null)
+				drawingBoard.ClearBoard();
+			if (renderToTex3D)
+			{
+				RunSimulationFrame(0);
+			}
+			HasSpawned = false;
+			isPaused = true;
+			simTimer = 0;
+		}
 
 		//public void FullReset()
 		//{

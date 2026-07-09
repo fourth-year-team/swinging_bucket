@@ -98,12 +98,13 @@ namespace Seb.Fluid.Rendering
 					mat.SetBuffer("Velocities", sim.velocityBuffer);
 					mat.SetBuffer("DebugBuffer", sim.debugBuffer);
 
-					// Recreate argsBuffer if particle count changed
-					if (argsBuffer == null || argsBuffer.count != sim.positionBuffer.count)
-					{
-						ComputeHelper.Release(argsBuffer);
-						ComputeHelper.CreateArgsBuffer(ref argsBuffer, mesh, sim.positionBuffer.count);
-					}
+				// Recreate argsBuffer if particle count changed
+				if (argsBuffer == null || argsBuffer.count != sim.positionBuffer.count)
+				{
+					ComputeHelper.Release(argsBuffer);
+					argsBuffer = null;
+					ComputeHelper.CreateArgsBuffer(ref argsBuffer, mesh, sim.positionBuffer.count);
+				}
 				}
 
 				mat.SetFloat("scale", scale * 0.01f);

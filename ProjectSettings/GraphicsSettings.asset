@@ -38,6 +38,15 @@ GraphicsSettings:
   - {fileID: 4800000, guid: 13de1318fe7184e48bdf807b928b641b, type: 3}
   - {fileID: 4800000, guid: 638bb1bdb9b8e374e8a5cbcd595e3973, type: 3}
   - {fileID: 4800000, guid: 003d9c7b99e4ae24db750901a22fd060, type: 3}
+  - {fileID: 4800000, guid: a515424062db75940b23e1d5d6e8bb22, type: 3}
+  - {fileID: 4800000, guid: 01c85607532ef7a4d9bc7239dfbad94c, type: 3}
+  - {fileID: 4800000, guid: ce2800a7301a760409fa7f252748145b, type: 3}
+  - {fileID: 4800000, guid: ca3f7ea603736dc49acd32bbee16e79b, type: 3}
+  - {fileID: 4800000, guid: 51c49fd9371f75941be25d4e04cd4c3b, type: 3}
+  - {fileID: 4800000, guid: 3887ea62b8b3f554ba6fe11d830d554a, type: 3}
+  - {fileID: 4800000, guid: 650e4a4f0f5620842a1032b02d4f95d6, type: 3}
+  - {fileID: 4800000, guid: 557ee3bc7bd1ca242a49f3816e6025b5, type: 3}
+  - {fileID: 4800000, guid: 9a832c9d1359bcb4997205fac07216cc, type: 3}
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: -1
   m_SpritesDefaultMaterial: {fileID: 10754, guid: 0000000000000000f000000000000000, type: 0}
@@ -67,7 +76,7 @@ GraphicsSettings:
     keywordDeclarationOverrides: []
   m_LightsUseLinearIntensity: 1
   m_LightsUseColorTemperature: 1
-  m_LogWhenShaderIsCompiled: 0
+  m_LogWhenShaderIsCompiled: 1
   m_LightProbeOutsideHullStrategy: 0
   m_CameraRelativeLightCulling: 0
-  m_CameraRelativeShadowCulling: 0
+  m_CameraRelativeShadowCulling: 1

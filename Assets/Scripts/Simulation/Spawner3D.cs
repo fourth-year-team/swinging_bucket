@@ -26,6 +26,9 @@ namespace Seb.Fluid.Simulation
 			List<float3> allPoints = new();
 			List<float3> allVelocities = new();
 
+			if (bucketBody == null)
+				bucketBody = FindFirstObjectByType<BucketBody>();
+
 			if (bucketBody != null)
 			{
 				SpawnInBucket(allPoints, allVelocities);
@@ -61,7 +64,8 @@ namespace Seb.Fluid.Simulation
 			float localCentreY = (bucketBody.bottomY + bucketBody.topY) / 2;
 			Vector3 centre = bucketBody.transform.TransformPoint(new Vector3(0, localCentreY, 0));
 
-			int particlesPerAxis = CalculateParticlesPerAxis(cubeSize, particleSpawnDensity);
+			int targetCount = Mathf.Max(1, bucketBody.targetParticleCount);
+			int particlesPerAxis = Math.Max(1, (int)Math.Cbrt(targetCount));
 			var (pts, vels) = SpawnCube(particlesPerAxis, centre, Vector3.one * cubeSize);
 			points.AddRange(pts);
 			velocities.AddRange(vels);
@@ -123,8 +127,8 @@ namespace Seb.Fluid.Simulation
 				float maxHalfSize = Mathf.Min(narrowestRadius / Mathf.Sqrt(2), height / 2);
 				float cubeSize = Mathf.Max(0.1f, maxHalfSize * 2);
 				debug_spawn_volume = cubeSize * cubeSize * cubeSize;
-				debug_num_particles = CalculateParticlesPerAxis(cubeSize, particleSpawnDensity);
-				debug_num_particles = debug_num_particles * debug_num_particles * debug_num_particles;
+				int targetCount = Mathf.Max(1, bucketBody.targetParticleCount);
+				debug_num_particles = (int)Math.Pow(Math.Max(1, (int)Math.Cbrt(targetCount)), 3);
 			}
 			else if (spawnRegions != null)
 			{

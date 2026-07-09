@@ -31,6 +31,7 @@ public class UIManager : MonoBehaviour
 
     // private GameObject hudContent;
     private Text thetaText, phiText, paintText, massText;
+    private Text windText, dragText, frictionText;
     private Slider thetaSlider, phiSlider;
     private Text thetaSliderValue, phiSliderValue;
     private Rope rope;
@@ -42,8 +43,9 @@ public class UIManager : MonoBehaviour
     private bool particlesSpawned;
     private Button startButton;
     private ParticleDisplay3D particleDisplay;
-    private FluidRenderTest fluidRender;
     private Button displayModeButton;
+    private FluidRenderTest fluidRender;
+
     private Button screenSpaceButton;
 
     private InputField gravityInput, smoothingRadiusInput, viscosityInput;
@@ -97,6 +99,9 @@ public class UIManager : MonoBehaviour
         phiText.text = string.Format("{0:F1}\u00B0", phiDeg);
         paintText.text = string.Format("{0:F1} kg", bucket.paintMass);
         massText.text = string.Format("{0:F1} kg", bucket.mass);
+        windText.text = string.Format("{0:F1} m/s", rope.windStrength);
+        dragText.text = string.Format("{0:F3}", rope.Cd);
+        frictionText.text = string.Format("{0:F4}", rope.pivotFriction);
 
         if (particleCountText != null && fluidSim != null)
             particleCountText.text = fluidSim.NumParticles.ToString();
@@ -141,7 +146,7 @@ public class UIManager : MonoBehaviour
         hrt.anchorMax = new Vector2(0, 1);
         hrt.pivot = new Vector2(0, 1);
         hrt.anchoredPosition = new Vector2(30, -30);
-        hrt.sizeDelta = new Vector2(260, 280);
+        hrt.sizeDelta = new Vector2(260, 400);
 
         Image hbg = hudPanel.GetComponent<Image>();
         hbg.type = Image.Type.Sliced;
@@ -174,6 +179,9 @@ public class UIManager : MonoBehaviour
         phiText = AddHUDLine("hudPhi", "φ", "\u03C6", "0.0\u00B0");
         paintText = AddHUDLine("hudPaint", "💧", "Paint", "0.0 kg");
         massText = AddHUDLine("hudMass", "🎒", "Mass", "0.0 kg");
+        windText = AddHUDLine("hudWind", "W", "Wind", "0.0");
+        dragText = AddHUDLine("hudDrag", "D", "Drag", "0.0");
+        frictionText = AddHUDLine("hudFriction", "F", "Friction", "0.0000");
 
         AddRenderingSettings(hudPanel.transform);
     }
@@ -276,7 +284,7 @@ public class UIManager : MonoBehaviour
         Color bgColor = new Color(0.08f, 0.09f, 0.11f, 0.94f);
         Sprite roundedSprite = BuildRoundedSprite(radius, borderW, bgColor, Color.black);
 
-        GameObject borderGO = new GameObject("SidePanel", typeof(Image), typeof(VerticalLayoutGroup));
+        GameObject borderGO = new GameObject("SidePanel", typeof(Image));
         borderGO.transform.SetParent(canvas.transform, false);
 
         RectTransform brt = borderGO.GetComponent<RectTransform>();
@@ -292,21 +300,89 @@ public class UIManager : MonoBehaviour
         borderImg.sprite = roundedSprite;
         borderImg.pixelsPerUnitMultiplier = 1;
 
-        VerticalLayoutGroup vlg = borderGO.GetComponent<VerticalLayoutGroup>();
-        vlg.childAlignment = TextAnchor.UpperCenter;
-        vlg.childControlWidth = true;
-        vlg.childControlHeight = true;
-        vlg.childForceExpandWidth = true;
-        vlg.childForceExpandHeight = false;
-        vlg.spacing = 10;
-        vlg.padding = new RectOffset(borderW + 12, borderW + 12, borderW + 12, borderW + 12);
+        // Viewport (clips content so it doesn't overflow the side panel)
+        GameObject viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+        viewport.transform.SetParent(borderGO.transform, false);
+        RectTransform vpRt = viewport.GetComponent<RectTransform>();
+        vpRt.anchorMin = Vector2.zero;
+        vpRt.anchorMax = Vector2.one;
+        vpRt.offsetMin = new Vector2(borderW, borderW);
+        vpRt.offsetMax = new Vector2(-borderW, -borderW);
 
-        sidePanel = borderGO;
+        // Content (grows to fit all cards)
+        GameObject content = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        content.transform.SetParent(viewport.transform, false);
+        RectTransform crt = content.GetComponent<RectTransform>();
+        crt.anchorMin = new Vector2(0, 1);
+        crt.anchorMax = new Vector2(1, 1);
+        crt.offsetMin = Vector2.zero;
+        crt.offsetMax = Vector2.zero;
+        crt.pivot = new Vector2(0, 1);
+
+        VerticalLayoutGroup cvlg = content.GetComponent<VerticalLayoutGroup>();
+        cvlg.childAlignment = TextAnchor.UpperCenter;
+        cvlg.childControlWidth = true;
+        cvlg.childControlHeight = true;
+        cvlg.childForceExpandWidth = true;
+        cvlg.childForceExpandHeight = false;
+        cvlg.spacing = 10;
+        cvlg.padding = new RectOffset(borderW + 12, borderW + 12, borderW + 12, borderW + 12);
+
+        ContentSizeFitter csf = content.GetComponent<ContentSizeFitter>();
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        csf.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+        ScrollRect scrollRect = borderGO.AddComponent<ScrollRect>();
+        scrollRect.viewport = viewport.GetComponent<RectTransform>();
+        scrollRect.content = content.GetComponent<RectTransform>();
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.inertia = true;
+        scrollRect.decelerationRate = 0.135f;
+        scrollRect.scrollSensitivity = 20;
+        scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+
+        // Scrollbar
+        GameObject scrollbarGO = new GameObject("Scrollbar", typeof(Image), typeof(Scrollbar));
+        scrollbarGO.transform.SetParent(borderGO.transform, false);
+        RectTransform sbRt = scrollbarGO.GetComponent<RectTransform>();
+        sbRt.anchorMin = new Vector2(1, 0);
+        sbRt.anchorMax = new Vector2(1, 1);
+        sbRt.pivot = new Vector2(1, 0.5f);
+        sbRt.offsetMin = new Vector2(-14, borderW);
+        sbRt.offsetMax = new Vector2(-borderW, -borderW);
+        Image sbImg = scrollbarGO.GetComponent<Image>();
+        sbImg.color = new Color(0.2f, 0.2f, 0.22f, 0.5f);
+        Scrollbar scrollbar = scrollbarGO.GetComponent<Scrollbar>();
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        GameObject slidingArea = new GameObject("SlidingArea", typeof(RectTransform));
+        slidingArea.transform.SetParent(scrollbarGO.transform, false);
+        RectTransform saRt = slidingArea.GetComponent<RectTransform>();
+        saRt.anchorMin = Vector2.zero;
+        saRt.anchorMax = Vector2.one;
+        saRt.offsetMin = new Vector2(2, 2);
+        saRt.offsetMax = new Vector2(-2, -2);
+
+        GameObject handleGO = new GameObject("Handle", typeof(Image));
+        handleGO.transform.SetParent(slidingArea.transform, false);
+        Image handleImg = handleGO.GetComponent<Image>();
+        handleImg.color = new Color(0.4f, 0.4f, 0.45f, 0.8f);
+        RectTransform handleRt = handleGO.GetComponent<RectTransform>();
+        handleRt.anchorMin = Vector2.zero;
+        handleRt.anchorMax = Vector2.one;
+        handleRt.offsetMin = Vector2.zero;
+        handleRt.offsetMax = Vector2.zero;
+        scrollbar.targetGraphic = handleImg;
+        scrollbar.handleRect = handleRt;
+
+        scrollRect.verticalScrollbar = scrollbar;
+
+        sidePanel = content;
 
         AddColorPicker(sidePanel.transform);
-        AddStartButton(sidePanel.transform);
-        AddSpawnButton(sidePanel.transform);
-        AddRestartButton(sidePanel.transform);
+        AddActionButtons(sidePanel.transform);
         AddHoleSettings(sidePanel.transform);
         AddFluidSettings(sidePanel.transform);
         AddRopeSettings(sidePanel.transform);
@@ -1028,11 +1104,6 @@ public class UIManager : MonoBehaviour
             if (rope != null && float.TryParse(v, out float val)) rope.SetThetaPhiDegrees(rope.startTheta, val);
         });
 
-        AddToggleRow(section.transform, "AngularMotionRow", "Angular Motion", rope != null ? rope.angularMotion : true, v =>
-        {
-            if (rope != null) rope.angularMotion = v;
-        });
-
         AddInputFieldRow(section.transform, "RopeLengthRow", "Rope Length", rope != null ? rope.ropeLength.ToString("F1") : "5", v =>
         {
             if (rope != null && float.TryParse(v, out float val)) rope.SetRopeLength(val);
@@ -1046,6 +1117,31 @@ public class UIManager : MonoBehaviour
         AddInputFieldRow(section.transform, "PaintMassRow", "Paint Mass", rope != null && rope.bucketBody != null ? rope.bucketBody.paintMass.ToString("F1") : "10", v =>
         {
             if (rope != null && rope.bucketBody != null && float.TryParse(v, out float val)) rope.bucketBody.SetPaintMass(val);
+        });
+
+        AddInputFieldRow(section.transform, "WindStrengthRow", "Wind Strength", rope != null ? rope.windStrength.ToString("F1") : "0", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.windStrength = val;
+        });
+
+        AddToggleRow(section.transform, "WindDirXRow", "Wind → X", rope != null && rope.windDirection.x != 0, v =>
+        {
+            if (rope != null) rope.windDirection = new Vector3(v ? 1 : 0, 0, rope.windDirection.z);
+        });
+
+        AddToggleRow(section.transform, "WindDirZRow", "Wind → Z", rope != null && rope.windDirection.z != 0, v =>
+        {
+            if (rope != null) rope.windDirection = new Vector3(rope.windDirection.x, 0, v ? 1 : 0);
+        });
+
+        AddInputFieldRow(section.transform, "PivotFrictionRow", "Pivot Friction", rope != null ? rope.pivotFriction.ToString("F4") : "0.01", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.pivotFriction = Mathf.Max(0, val);
+        });
+
+        AddInputFieldRow(section.transform, "AirDensityRow", "Air Density", rope != null ? rope.rho_air.ToString("F3") : "1.225", v =>
+        {
+            if (rope != null && float.TryParse(v, out float val)) rope.rho_air = Mathf.Max(0, val);
         });
     }
 
@@ -1068,20 +1164,42 @@ public class UIManager : MonoBehaviour
         slg.childAlignment = TextAnchor.UpperLeft;
         slg.childControlWidth = true;
         slg.childControlHeight = true;
-        slg.spacing = 8;
+        slg.spacing = 6;
 
         LayoutElement sectionLE = section.AddComponent<LayoutElement>();
         sectionLE.flexibleHeight = 0;
 
-        AddDisplayModeButton(hudPanel.transform);
+        AddDisplayModeButton(section.transform);
+        AddScreenSpaceButton(section.transform);
+    }
 
-        // Add spacer
-        GameObject spacer = new GameObject("Spacer", typeof(LayoutElement));
-        spacer.transform.SetParent(hudPanel.transform, false);
-        LayoutElement spacerLE = spacer.GetComponent<LayoutElement>();
-        spacerLE.preferredHeight = 6;
+    void AddActionButtons(Transform parent)
+    {
+        GameObject section = CreateCard(parent, "ACTIONS", "");
+        section.GetComponent<Image>().color = new Color(0, 0, 0, 0);
 
-        AddScreenSpaceButton(hudPanel.transform);
+        Text sectionTitle = section.transform.Find("Header/Title").GetComponent<Text>();
+        sectionTitle.text = "ACTIONS";
+        sectionTitle.fontSize = 13;
+        sectionTitle.fontStyle = FontStyle.Bold;
+        sectionTitle.alignment = TextAnchor.MiddleLeft;
+        sectionTitle.color = new Color(0.85f, 0.85f, 0.9f);
+
+        Transform iconT = section.transform.Find("Header/Icon");
+        if (iconT != null) iconT.gameObject.SetActive(false);
+
+        VerticalLayoutGroup slg = section.GetComponent<VerticalLayoutGroup>();
+        slg.childAlignment = TextAnchor.UpperLeft;
+        slg.childControlWidth = true;
+        slg.childControlHeight = true;
+        slg.spacing = 6;
+
+        LayoutElement sectionLE = section.AddComponent<LayoutElement>();
+        sectionLE.flexibleHeight = 0;
+
+        AddStartButton(section.transform);
+        AddSpawnButton(section.transform);
+        AddRestartButton(section.transform);
     }
 
     void AddSpawnButton(Transform parent)
@@ -1174,7 +1292,12 @@ public class UIManager : MonoBehaviour
         btn.onClick.AddListener(() =>
         {
             if (bucket != null) bucket.ResetState();
-            if (rope != null) rope.Restart();
+            if (rope != null)
+            {
+                rope.windStrength = 0;
+                rope.windDirection = Vector3.right;
+                rope.Restart();
+            }
             if (fluidSim != null) fluidSim.FullReset();
 
 

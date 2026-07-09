@@ -1825,13 +1825,13 @@ MonoBehaviour:
   twistEnabled: 0
   twistSpeed: 360
   torsionalStiffness: 8
-  torsionalDamping: 0.98
-  twistCoupling: 5
+  torsionalDamping: 0.95
+  twistCoupling: 0.3
   twistAngle: 0
   twistVelocity: 0
   tiltScale: 0.6
   maxTiltDeg: 60
-  tiltSmoothing: 12
+  tiltSmoothing: 8
   maxAccel: 30
   bucketBody: {fileID: 202964311}
   bucketVisual: {fileID: 202964310}
@@ -1839,12 +1839,12 @@ MonoBehaviour:
   totalMass: 0
   rho_air: 1.225
   Cd: 0.03
-  ropeDragCd: 0.03
+  ropeDragCd: 1
   humidity: 0
-  pivotFriction: 0.001
+  pivotFriction: 0.01
   windDirection: {x: 1, y: 0, z: 0}
   windStrength: 0
-  ropeRadius: 0.03
+  ropeRadius: 0.05
   radialSegments: 6
   currentPos: []
 --- !u!23 &1069786375

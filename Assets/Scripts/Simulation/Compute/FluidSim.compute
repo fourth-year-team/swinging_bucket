@@ -635,15 +635,30 @@ void CalculatePressureForce(uint3 id : SV_DispatchThreadID)
     Velocities[id.x] = velocityNew;
 
     // Quadratic air drag on all particles (real aerodynamic drag, relative to wind)
-    float3 relVel = velocity - windVector;
-    float sqrSpeed = dot(relVel, relVel);
-    float speed = sqrt(sqrSpeed);
-    float rho_humid = rho_air * (1.0f + 0.015f * humidity);
-    float particleCrossSection = 3.14159f * _ParticleRadius * _ParticleRadius;
-    float particleMass = targetDensity * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f);
-    float dragMag = 0.5f * rho_humid * Cd_fluid * particleCrossSection * sqrSpeed;
-    if (speed > 0.001f)
-        Velocities[id.x] -= (relVel / speed) * (dragMag / particleMass) * deltaTime;
+    // Skip wind for particles still inside the bucket
+    bool skipWind = false;
+    if (EscapedThroughHole[id.x] == 0)
+    {
+        float3 posLocal = mul(_BucketWorldToLocal, float4(pos, 1)).xyz;
+        float h = max(_BucketTopY - _BucketBottomY, 1e-4f);
+        float t = saturate((posLocal.y - _BucketBottomY) / h);
+        float bucketRadius = lerp(_BucketBottomRadius, _BucketTopRadius, t);
+        float radial = length(posLocal.xz);
+        if (posLocal.y <= _BucketTopY && radial <= bucketRadius)
+            skipWind = true;
+    }
+    if (!skipWind)
+    {
+        float3 relVel = velocity - windVector;
+        float sqrSpeed = dot(relVel, relVel);
+        float speed = sqrt(sqrSpeed);
+        float rho_humid = rho_air * (1.0f + 0.015f * humidity);
+        float particleCrossSection = 3.14159f * _ParticleRadius * _ParticleRadius;
+        float particleMass = targetDensity * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f) * (smoothingRadius * 0.25f);
+        float dragMag = 0.5f * rho_humid * Cd_fluid * particleCrossSection * sqrSpeed;
+        if (speed > 0.001f)
+            Velocities[id.x] -= (relVel / speed) * (dragMag / particleMass) * deltaTime;
+    }
 
 
     // ---- Handle spawning of white particles from the current fluid particle ----

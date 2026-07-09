@@ -126,7 +126,6 @@ namespace Seb.Fluid.Rendering
 
 			UpdateShadowCam();
 			UpdateSettings();
-			HandleDebugDisplayInput();
 		}
 
 		void UpdateShadowCam()
@@ -335,18 +334,6 @@ namespace Seb.Fluid.Rendering
 			matComposite.SetFloat("tileDarkOffset", environmentSettings.tileDarkOffset);
 			matComposite.SetFloat("sunIntensity", environmentSettings.sunIntensity);
 			matComposite.SetFloat("sunInvSize", environmentSettings.sunInvSize);
-		}
-
-		void HandleDebugDisplayInput()
-		{
-			for (int i = 0; i <= 9; i++)
-			{
-				if (Input.GetKeyDown(KeyCode.Alpha0 + i))
-				{
-					displayMode = (DisplayMode)i;
-					Debug.Log("Set display mode: " + displayMode);
-				}
-			}
 		}
 
 		[System.Serializable]
