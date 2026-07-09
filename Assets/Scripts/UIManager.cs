@@ -30,8 +30,10 @@ public class UIManager : MonoBehaviour
     private Font uiFont;
 
     // private GameObject hudContent;
+    private float fpsSmoothed;
     private Text thetaText, phiText, paintText, massText;
     private Text windText, dragText, frictionText;
+    private Text frameText;
     private Slider thetaSlider, phiSlider;
     private Text thetaSliderValue, phiSliderValue;
     private Rope rope;
@@ -99,6 +101,12 @@ public class UIManager : MonoBehaviour
         phiText.text = string.Format("{0:F1}\u00B0", phiDeg);
         paintText.text = string.Format("{0:F1} kg", bucket.paintMass);
         massText.text = string.Format("{0:F1} kg", bucket.mass);
+
+        float currentFps = 1f / Time.unscaledDeltaTime;
+        fpsSmoothed = Mathf.Lerp(fpsSmoothed, currentFps, Time.unscaledDeltaTime * 5f);
+        if (frameText != null)
+            frameText.text = string.Format("{0:F0}", fpsSmoothed);
+
         windText.text = string.Format("{0:F1} m/s", rope.windStrength);
         dragText.text = string.Format("{0:F3}", rope.Cd);
         frictionText.text = string.Format("{0:F4}", rope.pivotFriction);
@@ -182,6 +190,7 @@ public class UIManager : MonoBehaviour
         windText = AddHUDLine("hudWind", "W", "Wind", "0.0");
         dragText = AddHUDLine("hudDrag", "D", "Drag", "0.0");
         frictionText = AddHUDLine("hudFriction", "F", "Friction", "0.0000");
+        frameText = AddHUDLine("hudFrames", "⏱", "FPS", "0");
 
         AddRenderingSettings(hudPanel.transform);
     }
@@ -1546,7 +1555,7 @@ public class UIManager : MonoBehaviour
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0, 1);
-        rt.anchoredPosition = new Vector2(30, -320);
+        rt.anchoredPosition = new Vector2(30, -440);
         rt.sizeDelta = new Vector2(260, 30);
 
         GameObject labelGO = new GameObject("Label", typeof(Text));
